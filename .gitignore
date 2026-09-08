@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+
+# Environment files
+.env
+.env.*
+
+# WhatsApp/Baileys credentials and session data
+**/whatsapp_baileys/auth/
+**/whatsapp_baileys/session/
+**/auth_info_baileys/
+**/baileys_auth_info/

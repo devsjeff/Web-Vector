@@ -4,8 +4,11 @@
 # Next.js
 **/.next/
 
-# Baileys session
-**/auth/
+# Baileys credentials and session data
+**/whatsapp_baileys/auth/
+**/whatsapp_baileys/session/
+**/auth_info_baileys/
+**/baileys_auth_info/
 
 # Environment files
 .env
