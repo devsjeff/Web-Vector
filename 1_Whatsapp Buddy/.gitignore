@@ -1,0 +1,13 @@
+# Ignore all Node dependencies anywhere
+**/node_modules/
+
+# Next.js
+**/.next/
+
+# Baileys session
+**/auth/
+
+# Environment files
+.env
+.env.local
+.env.*.local

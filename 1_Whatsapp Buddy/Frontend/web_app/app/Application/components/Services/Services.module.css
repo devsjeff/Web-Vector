@@ -1,0 +1,182 @@
+.wrapper {
+  --sidebar-width: 250px;
+  min-height: 100vh;
+  padding: 92px 24px 24px;
+  background: var(--app-background);
+  color: var(--app-text);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  gap: 18px;
+  width: min(1400px, 100%);
+  min-height: calc(100vh - 116px);
+  margin: 0 auto;
+}
+
+.sidebar,
+.workspace,
+.emptyState {
+  border: 1px solid var(--app-border);
+  background: var(--app-panel);
+  box-shadow: var(--app-shadow);
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 18px;
+}
+
+.sidebarHeader {
+  padding: 18px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.sidebarTitle {
+  margin: 0;
+  color: var(--app-text);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.sidebarSubTitle {
+  margin: 5px 0 0;
+  color: var(--app-muted);
+  font-size: 0.78rem;
+}
+
+.serviceList {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.serviceButton {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--app-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.serviceButton:hover {
+  color: var(--app-text);
+  background: var(--app-panel-soft);
+}
+
+.serviceButton:active {
+  transform: scale(0.99);
+}
+
+.serviceButtonActive {
+  border-color: var(--app-border-strong);
+  background: var(--app-selected);
+  color: var(--app-text);
+}
+
+.serviceIcon {
+  display: grid;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 8px;
+  background: var(--app-icon-background);
+  color: var(--app-accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.serviceName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.87rem;
+  font-weight: 600;
+}
+
+.workspace {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 18px;
+}
+
+.emptyState {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.emptyStateInner {
+  width: min(520px, 90%);
+  padding: 40px;
+  text-align: center;
+}
+
+.emptyIcon {
+  display: grid;
+  width: 62px;
+  height: 62px;
+  margin: 0 auto 18px;
+  place-items: center;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 18px;
+  background: var(--app-panel-soft);
+  color: var(--app-accent);
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.emptyState h1 {
+  margin: 0 0 9px;
+  color: var(--app-text);
+  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  letter-spacing: -0.04em;
+}
+
+.emptyState p {
+  margin: 0;
+  color: var(--app-muted);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+@media (max-width: 850px) {
+  .wrapper {
+    padding: 78px 12px 12px;
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+    min-height: calc(100vh - 90px);
+  }
+
+  .sidebar {
+    max-height: 300px;
+  }
+
+  .serviceList {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
