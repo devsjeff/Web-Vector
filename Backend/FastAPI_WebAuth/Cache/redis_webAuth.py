@@ -15,7 +15,7 @@ async def Delete_Email_otp(email:str ) -> dict :
         await redis.delete(f"otp:{email}")
         return {"operation":True}
     except Exception as e :
-        return {"operation":False , "error":e}
+        return {"operation":False , "error":str(e)}
 
 
     
