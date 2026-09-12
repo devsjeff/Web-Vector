@@ -1,11 +1,11 @@
-const Home = "http://127.0.0.1:8000/"
+const Home = "http://127.0.0.1:8000"
 export const Backend_urls = {url:Home , 
-                            HomeAuth :Home+"Auth" ,
-                            Login_Auth : Home + "Auth/Login" ,
-                            Signup_Auth : Home + "Auth/Signup" ,
-                            Forgot_password : Home +"Auth/ForgotPassword",
-                            Application : Home + "Auth/Application" ,
-                            Signup_OTP : Home + "Auth/SignupOTP"
+                            HomeAuth :Home+"/Auth" ,
+                            Login_Auth : Home + "/Auth/Login" ,
+                            Signup_Auth : Home + "/Auth/Signup" ,
+                            Forgot_password : Home +"/Auth/ForgotPassword",
+                            Application : Home + "/Auth/Application" ,
+                            Signup_OTP : Home + "/Auth/SignupOTP"
 
 }
 

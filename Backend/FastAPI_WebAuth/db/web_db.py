@@ -28,6 +28,8 @@ Base.metadata.create_all(engine)
 
 
 def check_user_exists(email):
+    """  RETURNS - operation_success":True , "UserExist":True  "error": str(e)"""
+    
     with Session(engine) as Session_use:
         try:
             
@@ -44,6 +46,7 @@ def check_user_exists(email):
     
 
 def create_user_account (email , password):
+    """"operation_success":True , "error": str(e)"""
     with Session (engine) as Session_use :
         try :
             Create_User = DatabaseSchema(email = email , password = password)
