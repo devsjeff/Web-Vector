@@ -17,10 +17,5 @@ async def Delete_Email_otp(email:str ) -> dict :
     except Exception as e :
         return {"operation":False , "error":e}
 
-async def Token_save(email:str , token:str , expiry = 100000) -> dict :
-    try:
-        await redis.set()
-        return {"operation":True}
-    except Exception as e:
-        return {"operation":False , "error":str(e)}
+
     
