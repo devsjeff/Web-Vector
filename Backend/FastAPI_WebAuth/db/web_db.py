@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine , String 
 from sqlalchemy.orm import mapped_column ,Mapped ,Session , DeclarativeBase
 from sqlalchemy.exc import SQLAlchemyError ,IntegrityError
-from FastAPI_WebAuth.Common_configs import DATABASE_URL
+from Backend.FastAPI_WebAuth.Common_configs import DATABASE_URL
 
 
 engine = create_engine(DATABASE_URL)
