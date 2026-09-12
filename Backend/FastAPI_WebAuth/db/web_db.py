@@ -22,10 +22,7 @@ class Base (DeclarativeBase):
 #DB_models
 
 class DatabaseSchema(Base):
-    __table__ = "Users"
-    
-    name(map) = mapped_column[str]
-    lastname
+    __tablename__ = "Users"
     
 
 
