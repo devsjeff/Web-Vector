@@ -34,10 +34,10 @@ class DatabaseSchema(Base):
 Base.metadata.create_all(engine)
 
 
-def Session_uses ():
+def Session_use ():
     DB_Session = Session(bind=engine)
     try:
-        yield DB_Session()
+        yield DB_Session
     finally:
         DB_Session.close()
     
@@ -46,12 +46,14 @@ def Session_uses ():
 
 def CheckUserExistOrNot(email):
     
-    EmailExist = Session_uses().query(DatabaseSchema).filter(DatabaseSchema.email == email).first()
+    EmailExist = Session_use().query(DatabaseSchema).filter(DatabaseSchema.email == email).first()
     if EmailExist:return True
     else :return False
     
 
 def CreateUserAccount (email , password):
-    Create_User = DatabaseSchema(email = email , password = password)
-    Session_uses().add(Create_User)
-    Session_uses.commit()
+    try :
+        Create_User = DatabaseSchema(email = email , password = password)
+        Session_use().add(Create_User)
+        Session_use.commit()
+    
