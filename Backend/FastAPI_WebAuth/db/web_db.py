@@ -34,19 +34,10 @@ class DatabaseSchema(Base):
 Base.metadata.create_all(engine)
 
 
-def Session_use ():
-    DB_Session = Session(bind=engine)
-    try:
-        yield DB_Session
-    finally:
-        DB_Session.close()
-    
-
-
-
 def CheckUserExistOrNot(email):
     
     try:
+        Session_use = DB_Session = Session(bind=engine)
         EmailExist = Session_use().query(DatabaseSchema).filter(DatabaseSchema.email == email).first()
         if not EmailExist:
             return {"operation_success":"True" , "UserExist":"False"}
@@ -54,16 +45,22 @@ def CheckUserExistOrNot(email):
             return {"operation_success":"True" , "UserExist":"True"}
     except:
         return {"operation_success":"False"}
+    finally :
+        Session_use.close()
         
        
     
 
 def CreateUserAccount (email , password):
     try :
+        Session_use  = Session(bind=engine)
         Create_User = DatabaseSchema(email = email , password = password)
-        Session_use().add(Create_User)
+        Session_use.query()
         Session_use.commit()
         return  {"operation_success":"False"}
     except:
+         Session_use.rollback()
          return {"operation_success":"False"}
+    finally:
+        Session_use.close()
     
