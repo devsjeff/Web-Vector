@@ -36,39 +36,31 @@ Base.metadata.create_all(engine)
 
 
 def check_user_exists(email):
-    try:
-        with Session(engine) as Session_use:
-            try:
-                
-                EmailExist = Session_use.query(DatabaseSchema).filter(DatabaseSchema.email == email).first()
-                if not EmailExist:
-                    return {"operation_success":True , "UserExist":False}
-                else :
-                    return {"operation_success":True , "UserExist":True}
-            except SQLAlchemyError as e :
-                return {"operation_success":False , "error": str(e)}
-    except Exception as e:
-        return {"operation_success":False , "error": str(e)}
-        
+    with Session(engine) as Session_use:
+        try:
+            
+            EmailExist = Session_use.query(DatabaseSchema).filter(DatabaseSchema.email == email).first()
+            if not EmailExist:
+                return {"operation_success":True , "UserExist":False}
+            else :
+                return {"operation_success":True , "UserExist":True}
+        except SQLAlchemyError as e :
+             return {"operation_success":False , "error": str(e)}
         
         
        
     
 
 def create_user_account (email , password):
-    try:
-        with Session (engine) as Session_use :
-            try :
-                Create_User = DatabaseSchema(email = email , password = password)
-                Session_use.add(Create_User)
-                Session_use.commit()
-                return  {"operation_success":True}
-            
-            except IntegrityError:
-                return {"operation_success": False, "error": "email_already_exists"}
-            except SQLAlchemyError as e :
-                return {"operation_success":False , "error": str(e)}
-    except Exception as e:
-        return {"operation_success":False , "error": str(e)}
+    with Session (engine) as Session_use :
+        try :
+            Create_User = DatabaseSchema(email = email , password = password)
+            Session_use.add(Create_User)
+            Session_use.commit()
+            return  {"operation_success":True}
+        except IntegrityError:
+            return {"operation_success": False, "error": "email_already_exists"}
+        except SQLAlchemyError as e :
+            return {"operation_success":False , "error": str(e)}
 
     
