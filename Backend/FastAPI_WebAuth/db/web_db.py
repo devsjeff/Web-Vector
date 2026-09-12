@@ -35,15 +35,15 @@ Base.metadata.create_all(engine)
 
 
 
-DBSession = Session(bind=engine)
+DB_Session = Session(bind=engine)
 
 
 
 def CheckUserExistOrNot(email):
-    EmailExist = DBSessionSession.query(DatabaseSchema).filter(DatabaseSchema.email == email).first()
+    EmailExist = DB_Session.query(DatabaseSchema).filter(DatabaseSchema.email == email).first()
     if EmailExist:return True
     else :return False
     
 
 def CreateUserAccount (email , password):
-    Create = Session.query
+    Create = DB_Session.query
