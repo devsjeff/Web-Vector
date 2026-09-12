@@ -1,28 +1,28 @@
-from FastAPI_WebAuth.Common_configs import EMAIL_ADDRESS ,EMAIL_APP_PASSWORD
+from FastAPI_WebAuth.Common_configs import GMAIL_EMAIL , GMAIL_APP_PASSWORD
+from FastAPI_WebAuth.Auth.otp import Generate_Otp
 import aiosmtplib
 from email.message import EmailMessage
-from FastAPI_WebAuth.Auth.otp import Generate_Otp
 
-PORT :int = 587
-
-async def Send_otp(email):
+async def Send_otp(email: str) -> dict:
     otp = Generate_Otp()
     message = EmailMessage()
-    
-    message["From"]= EMAIL_ADDRESS
+    message["From"] = GMAIL_EMAIL
     message["To"] = email
-    message["Subject"] = " Web-Vector  Email Verification"
-    
-    message.set_content(f"""
-    Your Web Vector verification code is:
-                    {otp}
-    This code will expire in 5 minutes.
-    If you did not request this, you can ignore this email.
-    """)
-    await aiosmtplib.send(message,hostname ="smtp.gmail.com", port=PORT, start_tls= True, username=EMAIL_ADDRESS, password= EMAIL_APP_PASSWORD)
+    message["Subject"] = "Web-Vector Email Verification"
+    message.set_content(f"WEB VECTOR \n\n\n Your OTP is: {otp} \n\n Expires in 5 minutes.")
+
+    try:
+        await aiosmtplib.send(
+        message,
+        hostname="smtp.gmail.com",
+        port=587,
+        start_tls=True,
+        username=GMAIL_EMAIL,
+        password=GMAIL_APP_PASSWORD)
+        return {"operation_success": True, "otp": otp}
+    except Exception as e:
+        return {"operation_success": False, "error": str(e)}
 
 if __name__ == "__main__":
     import asyncio
-    print(f"Email: {EMAIL_ADDRESS}")
-    print(f"Password: {EMAIL_APP_PASSWORD}")
-    asyncio.run(Send_otp("wwdevkhati2@gmail.com"))
+    result = asyncio.run(Send_otp(GMAIL_EMAIL))

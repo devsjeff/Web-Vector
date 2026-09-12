@@ -1,5 +1,5 @@
 from redis.asyncio import Redis
-from Backend.FastAPI_WebAuth.Common_configs import REDIS_URL
+from FastAPI_WebAuth.Common_configs import REDIS_URL
 
 redis = Redis.from_url(REDIS_URL , decode_responses=True )
 

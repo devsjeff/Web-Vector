@@ -12,7 +12,9 @@ REDIS_URL  = os.getenv("REDIS_URL")
 if not REDIS_URL:
     raise RuntimeError ("Redis url is missing")
 
-EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
-EMAIL_APP_PASSWORD = os.getenv("EMAIL_APP_PASSWORD")
-if not EMAIL_ADDRESS or (not EMAIL_ADDRESS) :
-    raise RuntimeError ("Email or password is missing")
+GMAIL_EMAIL = os.getenv("GMAIL_EMAIL")
+GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
+
+
+if not GMAIL_EMAIL or (not GMAIL_APP_PASSWORD) :
+    raise RuntimeError ("Gmail password or email missing")
