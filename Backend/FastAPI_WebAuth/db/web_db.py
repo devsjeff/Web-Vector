@@ -14,8 +14,7 @@ if not DATABASE_URL:
 engine = create_engine(DATABASE_URL)
 
 
-class Base (DeclarativeBase):
-    pass
+
 
 
 
