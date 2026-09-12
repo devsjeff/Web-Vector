@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine , String
+from sqlalchemy import create_engine , String 
 from sqlalchemy.orm import mapped_column ,Mapped ,Session , DeclarativeBase
 
 import os 
@@ -23,8 +23,7 @@ class Base (DeclarativeBase):
 
 class DatabaseSchema(Base):
     __tablename__ = "Users"
-    
-
-
-
+    name :Mapped[str] = mapped_column(String(20))
+    last_name :Mapped[str] = mapped_column(String(20))
+    email     
 
