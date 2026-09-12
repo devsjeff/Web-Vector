@@ -3,10 +3,8 @@ from sqlalchemy.orm import mapped_column ,Mapped ,Session , DeclarativeBase
 
 import os 
 from dotenv import load_dotenv
- import logging
 
 load_dotenv()
-logging.basicConfig(level=)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -18,6 +16,7 @@ engine = create_engine(DATABASE_URL)
 
 class Base (DeclarativeBase):
     pass
+
 
 
 
