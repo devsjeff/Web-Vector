@@ -26,28 +26,32 @@ class DatabaseSchema(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name :Mapped[str] = mapped_column(String(20),nullable=True)
     last_name :Mapped[str] = mapped_column(String(20),nullable=True)
-    email :Mapped[str]  = mapped_column(String(50) )  
-    password : Mapped[str] = mapped_column(String(100))
+    email :Mapped[str]  = mapped_column(String(50) , nullable=False)  
+    password : Mapped[str] = mapped_column(String(100) , nullable=False)
 
 
 
 Base.metadata.create_all(engine)
 
 
-
-DB_Session = Session(bind=engine)
+def Session_uses ():
+    DB_Session = Session(bind=engine)
+    try:
+        yield DB_Session()
+    finally:
+        DB_Session.close()
+    
 
 
 
 def CheckUserExistOrNot(email):
-    EmailExist = DB_Session.query(DatabaseSchema).filter(DatabaseSchema.email == email).first()
+    
+    EmailExist = Session_uses().query(DatabaseSchema).filter(DatabaseSchema.email == email).first()
     if EmailExist:return True
     else :return False
     
 
 def CreateUserAccount (email , password):
     Create_User = DatabaseSchema(email = email , password = password)
-    DB_Session.add(Create_User)
-    DB_Session.commit()
-    finally:
-        DB_Session.close()
+    Session_uses().add(Create_User)
+    Session_uses.commit()
