@@ -19,11 +19,15 @@ class Base (DeclarativeBase):
 
 
 
-#DB_models
+#DB_model
 
 class DatabaseSchema(Base):
     __tablename__ = "Users"
-    name :Mapped[str] = mapped_column(String(20))
-    last_name :Mapped[str] = mapped_column(String(20))
-    email     
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name :Mapped[str] = mapped_column(String(20),nullable=True)
+    last_name :Mapped[str] = mapped_column(String(20),nullable=True)
+    email :Mapped[str]  = mapped_column(String(50) )  
+    password : Mapped[str] = mapped_column(String(100))
+
+
 
