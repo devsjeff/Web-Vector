@@ -35,3 +35,10 @@ Base.metadata.create_all(engine)
 
 
 
+Session = Session(bind=engine)
+
+
+
+def CheckUserExistOrNot(email):
+    EmailExist = Session.query(DatabaseSchema).filter(email).first()
+    if 
