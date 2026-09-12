@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine , String 
 from sqlalchemy.orm import mapped_column ,Mapped ,Session , DeclarativeBase
+from sqlalchemy.exc import SQLAlchemyError
 
 import os 
 from dotenv import load_dotenv
@@ -22,7 +23,7 @@ class Base (DeclarativeBase):
 #DB_model
 
 class DatabaseSchema(Base):
-    __tablename__ = "Users"
+    __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
     name :Mapped[str] = mapped_column(String(20),nullable=True)
     last_name :Mapped[str] = mapped_column(String(20),nullable=True)
@@ -34,7 +35,7 @@ class DatabaseSchema(Base):
 Base.metadata.create_all(engine)
 
 
-def CheckUserExistOrNot(email):
+def check_user_exists(email):
     with Session(engine) as Session_use:
         try:
             
@@ -43,22 +44,21 @@ def CheckUserExistOrNot(email):
                 return {"operation_success":True , "UserExist":False}
             else :
                 return {"operation_success":True , "UserExist":True}
-        except:
-            return {"operation_success":False}
+        except SQLAlchemyError as e :
+             return {"operation_success":False , "error": str(e)}
         
         
        
     
 
-def CreateUserAccount (email , password):
+def create_user_account (email , password):
     with Session (engine) as Session_use :
         try :
-            Session_use  = Session(bind=engine)
             Create_User = DatabaseSchema(email = email , password = password)
             Session_use.add(Create_User)
             Session_use.commit()
             return  {"operation_success":True}
-        except:
-            return {"operation_success":False}
+        except SQLAlchemyError as e :
+            return {"operation_success":False , "error": str(e)}
 
     
