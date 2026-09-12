@@ -1,16 +1,8 @@
 from sqlalchemy import create_engine , String 
 from sqlalchemy.orm import mapped_column ,Mapped ,Session , DeclarativeBase
 from sqlalchemy.exc import SQLAlchemyError ,IntegrityError
+from FastAPI_WebAuth.Common_configs import DATABASE_URL
 
-import os 
-from dotenv import load_dotenv
-
-load_dotenv()
-
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if not DATABASE_URL:
-    raise RuntimeError ("Database url is missing")
 
 engine = create_engine(DATABASE_URL)
 

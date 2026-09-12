@@ -3,8 +3,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError ("Database url is missing")
 
-items = ["DATABASE_URL" , 
-         "DATABASE_URL" ,
-]
 
+REDIS_URL  = os.getenv("REDIS_URL")
+if not REDIS_URL:
+    raise RuntimeError ("Redis url is missing")
