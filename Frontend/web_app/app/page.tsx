@@ -21,7 +21,7 @@ export default function Page() {
             const Login = localStorage.getItem("Login")
 
             if (Login !== "true") {
-                router.replace("/Auth/Login")
+                router.replace("/Home")
                 return
             }
 

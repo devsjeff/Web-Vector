@@ -16,7 +16,6 @@
     );
 }
 
-
 .signupCard {
   width: min(540px, 100%);
 
@@ -45,7 +44,6 @@
   color: #ded1c1;
 
   font-size: 17px;
-
   font-weight: 800;
 
   letter-spacing: 2px;
@@ -62,12 +60,10 @@
   text-align: center;
 
   font-size: 38px;
-
   font-weight: 800;
 
   letter-spacing: -1px;
 }
-
 
 .subtitle {
   margin: 12px 0 32px;
@@ -77,52 +73,8 @@
   text-align: center;
 
   font-size: 15px;
-}
 
-
-/* GOOGLE */
-
-.googleButton {
-  width: 100%;
-
-  display: flex;
-
-  justify-content: center;
-}
-
-
-/* DIVIDER */
-
-.divider {
-  display: flex;
-
-  align-items: center;
-
-  gap: 15px;
-
-  margin: 30px 0;
-}
-
-
-.divider span {
-  height: 1px;
-
-  flex: 1;
-
-  background: rgba(255, 255, 255, 0.12);
-}
-
-
-.divider p {
-  margin: 0;
-
-  color: #718087;
-
-  font-size: 12px;
-
-  font-weight: 700;
-
-  letter-spacing: 1px;
+  line-height: 1.5;
 }
 
 
@@ -147,6 +99,31 @@
 }
 
 
+/* BACK */
+
+.backButton {
+  display: block;
+
+  margin-bottom: 20px;
+
+  padding: 0;
+
+  border: none;
+
+  background: transparent;
+
+  color: #9caab0;
+
+  font-size: 14px;
+
+  cursor: pointer;
+}
+
+.backButton:hover {
+  color: #ded1c1;
+}
+
+
 /* NAME */
 
 .nameRow {
@@ -164,7 +141,6 @@
   margin-bottom: 19px;
 }
 
-
 .field label {
   display: block;
 
@@ -176,7 +152,6 @@
 
   font-weight: 600;
 }
-
 
 .field input {
   width: 100%;
@@ -200,11 +175,9 @@
   transition: 0.2s;
 }
 
-
 .field input::placeholder {
   color: #68767c;
 }
-
 
 .field input:focus {
   border-color: rgba(222, 209, 193, 0.5);
@@ -212,11 +185,38 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
-
 .field input:disabled {
   opacity: 0.5;
 
   cursor: not-allowed;
+}
+
+
+/* OTP */
+
+.emailText {
+  margin: -20px 0 25px;
+
+  color: #ded1c1;
+
+  text-align: center;
+
+  font-size: 14px;
+  font-weight: 600;
+
+  word-break: break-word;
+}
+
+.smallText {
+  margin: 18px 0 0;
+
+  color: #68767c;
+
+  text-align: center;
+
+  font-size: 12px;
+
+  line-height: 1.5;
 }
 
 
@@ -246,13 +246,11 @@
   transition: 0.2s;
 }
 
-
 .signupButton:hover {
   transform: translateY(-1px);
 
   background: #eee2d2;
 }
-
 
 .signupButton:disabled {
   opacity: 0.6;
@@ -283,7 +281,6 @@
   font-size: 14px;
 }
 
-
 .login a {
   color: #ded1c1;
 
@@ -291,7 +288,6 @@
 
   text-decoration: none;
 }
-
 
 .login a:hover {
   text-decoration: underline;
@@ -316,7 +312,6 @@
 /* MOBILE */
 
 @media (max-width: 600px) {
-
   .signupPage {
     padding: 20px 15px;
   }
@@ -331,6 +326,7 @@
 
   .nameRow {
     grid-template-columns: 1fr;
+
     gap: 0;
   }
 

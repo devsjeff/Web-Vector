@@ -5,6 +5,7 @@ export const Backend_urls = {url:Home ,
                             Signup_Auth : Home + "Auth/Signup" ,
                             Forgot_password : Home +"Auth/ForgotPassword",
                             Application : Home + "Auth/Application" ,
+                            Signup_OTP : Home + "Auth/SignupOTP"
 
 }
 
