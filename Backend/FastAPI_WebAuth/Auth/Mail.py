@@ -1,13 +1,13 @@
 from FastAPI_WebAuth.Common_configs import EMAIL_ADDRESS ,EMAIL_APP_PASSWORD
 import aiosmtplib
-from email.message import Message
+from email.message import EmailMessage
 from FastAPI_WebAuth.Auth.otp import Generate_Otp
 
 PORT :int = 587
 
 async def Send_otp(email):
     otp = Generate_Otp()
-    message = Message()
+    message = EmailMessage()
     
     message["From"]= EMAIL_ADDRESS
     message["To"] = email
@@ -23,4 +23,6 @@ async def Send_otp(email):
 
 if __name__ == "__main__":
     import asyncio
+    print(f"Email: {EMAIL_ADDRESS}")
+    print(f"Password: {EMAIL_APP_PASSWORD}")
     asyncio.run(Send_otp("wwdevkhati2@gmail.com"))
