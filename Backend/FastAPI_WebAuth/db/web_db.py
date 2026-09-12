@@ -53,7 +53,7 @@ def CheckUserExistOrNot(email):
         else :
             return {"operation_success":"True" , "UserExist":"True"}
     except:
-        return {"ope"}
+        return {"operation_success":"False"}
         
        
     
@@ -63,4 +63,7 @@ def CreateUserAccount (email , password):
         Create_User = DatabaseSchema(email = email , password = password)
         Session_use().add(Create_User)
         Session_use.commit()
+        return  {"operation_success":"False"}
+    except:
+         return {"operation_success":"False"}
     
