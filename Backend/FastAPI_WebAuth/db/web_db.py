@@ -14,7 +14,8 @@ if not DATABASE_URL:
 engine = create_engine(DATABASE_URL)
 
 
-
+class Base (DeclarativeBase):
+    pass
 
 
 
@@ -27,6 +28,10 @@ class DatabaseSchema(Base):
     last_name :Mapped[str] = mapped_column(String(20),nullable=True)
     email :Mapped[str]  = mapped_column(String(50) )  
     password : Mapped[str] = mapped_column(String(100))
+
+
+
+Base.metadata.create_all(engine)
 
 
 
