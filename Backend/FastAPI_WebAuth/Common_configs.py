@@ -11,3 +11,4 @@ if not DATABASE_URL:
 REDIS_URL  = os.getenv("REDIS_URL")
 if not REDIS_URL:
     raise RuntimeError ("Redis url is missing")
+
