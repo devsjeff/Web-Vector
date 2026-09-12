@@ -46,4 +46,8 @@ def CheckUserExistOrNot(email):
     
 
 def CreateUserAccount (email , password):
-    Create = DB_Session.query
+    Create_User = DatabaseSchema(email = email , password = password)
+    DB_Session.add(Create_User)
+    DB_Session.commit()
+    finally:
+        DB_Session.close()
