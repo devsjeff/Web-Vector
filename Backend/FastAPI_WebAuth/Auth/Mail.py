@@ -3,7 +3,7 @@ from Types_pydantic import Email
 import aiosmtplib
 from email.message import Message
 
-Port:int = 587
+PORT :int = 587
 
 async def Send_otp(email:Email , otp):
     message = Message()
@@ -18,8 +18,4 @@ async def Send_otp(email:Email , otp):
     This code will expire in 5 minutes.
     If you did not request this, you can ignore this email.
     """)
-    await aiosmtplib.send(
-        message
-        
-        
-    )
+    await aiosmtplib.send(message,hostname ="smtp.gmail.com", port=PORT, start_tls= True, username=EMAIL_ADDRESS, password= EMAIL_APP_PASSWORD)
