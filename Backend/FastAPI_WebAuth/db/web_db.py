@@ -46,9 +46,16 @@ def Session_use ():
 
 def CheckUserExistOrNot(email):
     
-    EmailExist = Session_use().query(DatabaseSchema).filter(DatabaseSchema.email == email).first()
-    if EmailExist:return True
-    else :return False
+    try:
+        EmailExist = Session_use().query(DatabaseSchema).filter(DatabaseSchema.email == email).first()
+        if not EmailExist:
+            return {"operation_success":"True" , "UserExist":"False"}
+        else :
+            return {"operation_success":"True" , "UserExist":"True"}
+    except:
+        return {"ope"}
+        
+       
     
 
 def CreateUserAccount (email , password):
