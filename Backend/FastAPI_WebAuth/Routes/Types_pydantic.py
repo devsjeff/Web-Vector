@@ -5,7 +5,7 @@ class Token (BaseModel):
     
 
 class Email (BaseModel):
-    email :str
+    email : EmailStr
     
     
 class LoginType (BaseModel):
