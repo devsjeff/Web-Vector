@@ -13,7 +13,7 @@ export const Frontend_Links = {
 
 const Backend_Home = "http://localhost:8000";
 
-export const Backend_urls = {
+export const Backend_urls = {   Auth : `${Backend_Home}/Auth`,
                                 Login: `${Backend_Home}/Auth/Login`,
                                 SignupSendOTP: `${Backend_Home}/Auth/SignupSendOTP`,
                                 Verify_otp_Create_Acc : `${Backend_Home}/Auth/VerifySignOtpCreateAcc`,

@@ -6,7 +6,7 @@ from FastAPI_WebAuth.Routes.Types_pydantic import Email ,SignupType ,LoginType
 from FastAPI_WebAuth.Routes.config import limiter
 from FastAPI_WebAuth.db.web_db import check_user_exists , create_user_account ,Login_email_pass_Get ,Update_user_account_pass
 from FastAPI_WebAuth.Auth.Argon2_pass import hash_password
-from FastAPI_WebAuth.Auth.jwt import create_access_token 
+from FastAPI_WebAuth.Auth.jwt import create_access_token ,Verify_decode_token 
 from FastAPI_WebAuth.Common_configs import dev
 
 WEBrouter = APIRouter()
@@ -162,6 +162,15 @@ async def LoginRoute(request:Request ,response:Response , body:SignupType):
         else:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
     else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+
+@WEBrouter.get("/Auth")
+@limiter.limit("1/min")
+async def LoginRoute(request:Request ,response:Response ):
+    token = request.cookies.get("access_token")
+    if Verify_decode_token(token=token):
+        return HTTPException(status_code=status.HTTP_200_OK)
+    else :
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
         
         

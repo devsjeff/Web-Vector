@@ -5,7 +5,11 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 
 async function checkLogin() {
-    const response = await fetch(Backend_urls.HomeAuth)
+const response = await fetch(Backend_urls.Auth ,{
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include"}
+)
 
     return response.ok
 }
