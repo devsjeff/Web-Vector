@@ -5,6 +5,7 @@ from FastAPI_WebAuth.Cache.redis_webAuth import Set_email_with_otp_Signup ,Verif
 from FastAPI_WebAuth.Routes.Types_pydantic import Email ,SignupType
 from FastAPI_WebAuth.Routes.config import limiter
 from FastAPI_WebAuth.db.web_db import check_user_exists , create_user_account
+from FastAPI_WebAuth.Auth.Argon2_pass import hash_password
 
 
 WEBrouter = APIRouter()
@@ -71,8 +72,8 @@ async def Verify_Del_signup_otp(request:Request , body: SignupType):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Wrong or expired OTP",
         )
-        
-    result = await create_user_account(email=body.email,password=body.password)
+    hashed_password = await hash_password(body.password)  
+    result = await create_user_account(email=body.email,password=hashed_password)
 
     if not result.get("operation_success"):
         err = result.get("error", "")

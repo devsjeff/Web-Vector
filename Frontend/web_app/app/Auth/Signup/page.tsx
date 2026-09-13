@@ -29,6 +29,23 @@ export default function SignupPage() {
 
   /* ================= OTP TIMER ================= */
 
+    useEffect(() => {
+
+        async function check() {
+
+            const Login = localStorage.getItem("Login")
+
+            if (Login == "true") {
+                router.replace("/Application")
+                console.log("You are registered")
+                return
+            }
+        }
+
+        check()
+
+    }, [router])
+
   useEffect(() => {
     if (otpCooldown <= 0) return;
 
@@ -151,7 +168,7 @@ export default function SignupPage() {
         setError("Unable to create account.");
         return;
       }
-
+      localStorage.setItem("Login" ,"true")
       router.push(Frontend_Links.Application);
     } catch (err) {
       console.error(err);
