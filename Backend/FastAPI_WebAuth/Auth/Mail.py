@@ -13,7 +13,7 @@ async def Send_otp_For_Signup(email: str) -> dict:
     message["To"] = email
     message["Subject"] = "Web-Vector Email Verification"
     message.set_content(
-        f"WEB VECTOR\n\n\nYour OTP is: {otp}\n\nExpires in 5 minutes."
+        f"WEB VECTOR\n\n\nYour OTP is: {otp}\n\nExpires in 2 minutes."
     )
 
     try:

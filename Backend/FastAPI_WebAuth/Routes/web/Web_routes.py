@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException, Request,Response, status
 
 from FastAPI_WebAuth.Auth.Mail import Send_otp_For_Signup
-from FastAPI_WebAuth.Cache.redis_webAuth import Set_email_with_otp_Signup ,Verify_Delete_Email_otp_signup
+from FastAPI_WebAuth.Cache.redis_webAuth import Set_email_with_otp_Signup ,Verify_Delete_Email_otp_signup ,REDIS_OTP_Forgot_password ,Verify_Delete_Email_otp_Forgot
 from FastAPI_WebAuth.Routes.Types_pydantic import Email ,SignupType ,LoginType
 from FastAPI_WebAuth.Routes.config import limiter
-from FastAPI_WebAuth.db.web_db import check_user_exists , create_user_account ,Login_email_pass_Get
+from FastAPI_WebAuth.db.web_db import check_user_exists , create_user_account ,Login_email_pass_Get ,Update_user_account_pass
 from FastAPI_WebAuth.Auth.Argon2_pass import hash_password
 from FastAPI_WebAuth.Auth.jwt import create_access_token 
 from FastAPI_WebAuth.Common_configs import dev
@@ -123,9 +123,51 @@ async def LoginRoute(request:Request ,response:Response , body:LoginType):
             httponly= True,
             secure= dev ,
             samesite= "lax" ,
-            max_age= 60 * 24  * 2,
+            max_age= 60 * 60  * 2,
             path="/"
         )
         return {"message": "Login successful"}
+
+@WEBrouter.post("/Auth/Forgot_password_Otp")
+@limiter.limit("1/min")
+async def Forgot_pass_send_otp(request:Request , response:Response ,body:Email):
+    exist= await check_user_exists(body.email)
+    if exist :
+        otp_result = await Send_otp_For_Signup(body.email)
+        otp_value = otp_result.get("otp")
+        await REDIS_OTP_Forgot_password(body.email ,otp=otp_value)
+    else:
+        raise HTTPException(status_code= status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+@WEBrouter.post("/Auth/Forget_pass_Reset")
+@limiter.limit("1/min")
+async def LoginRoute(request:Request ,response:Response , body:SignupType):
+    otp_matched= await Verify_Delete_Email_otp_Forgot(body.email ,otp=body.otp)
+    if otp_matched:
+        hashed = await hash_password(body.password)
+        done = await Update_user_account_pass(body.email ,password=hashed)
+        if done :
+            token = create_access_token(body.email)
+            response.set_cookie(
+                        key="access_token" ,
+                        value= token ,
+                        httponly= True,
+                        secure= dev ,
+                        samesite= "lax" ,
+                        max_age= 60 * 60  * 2,
+                        path="/"
+                    )
+            return {"message": "Login successful"}
+        else:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        
+        
+    
+        
+
+
     
     

@@ -15,9 +15,10 @@ const Backend_Home = "http://localhost:8000";
 
 export const Backend_urls = {
                                 Login: `${Backend_Home}/Auth/Login`,
-                                Signup: `${Backend_Home}/Auth/Signup`,
                                 SignupSendOTP: `${Backend_Home}/Auth/SignupSendOTP`,
                                 Verify_otp_Create_Acc : `${Backend_Home}/Auth/VerifySignOtpCreateAcc`,
+                                Forgot_password_Otp: `${Backend_Home}/Auth/Forgot_password_Otp`,
+                                Forget_pass_Reset: `${Backend_Home}/Auth/Forget_pass_Reset`
                                 
 };
 // 

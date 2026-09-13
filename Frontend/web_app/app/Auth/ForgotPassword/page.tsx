@@ -31,7 +31,7 @@ export default function ForgotPasswordPage() {
     setOtpLoading(true);
 
     try {
-      const response = await fetch(Backend_urls.Forgot_password, {
+      const response = await fetch(Backend_urls.Forgot_password_Otp, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -112,7 +112,7 @@ export default function ForgotPasswordPage() {
     setResetLoading(true);
 
     try {
-      const response = await fetch(Backend_urls.Forgot_password, {
+      const response = await fetch(Backend_urls.Forget_pass_Reset, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, otp, password }),
@@ -132,9 +132,9 @@ export default function ForgotPasswordPage() {
         setError("Unable to reset your password. Please try again.");
         return;
       }
-      setSuccess("Password reset successfully! You can now sign in.");
+      setSuccess("Password reset successfully! You can now sign in or just go to Application to use .");
       setTimeout(() => {
-        router.push(Frontend_Links.Login_Page)}, 2000);
+        router.push(Frontend_Links.Application)}, 2000);
 
 
       setOtp("");

@@ -6,7 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from FastAPI_WebAuth.Common_configs import DATABASE_URL
 from FastAPI_WebAuth.Auth.Argon2_pass import verify_password
 
-# ================= ENGINE & SESSION =================
+# ------ ENGINE and SESSION --------------------
 
 engine = create_async_engine(DATABASE_URL, echo=False)
 
@@ -26,7 +26,7 @@ class DatabaseSchema(Base):
     password: Mapped[str] = mapped_column(String(255), nullable=False)
 
 
-# ================= INIT DB =================
+#  INIT DB -----------------------------
 
 async def init_db() -> None:
     """Run once at startup to create tables."""
@@ -93,5 +93,34 @@ async def Login_email_pass_Get(email:str ,password :str) -> bool|str :
             return result
     except Exception as e :
         return "string"
-            
     
+    
+async def check_user_exists(email: str):
+  
+    async with AsyncSessionLocal() as session:
+        try:
+            result = await session.execute(
+                select(DatabaseSchema).where(DatabaseSchema.email == email)
+            )
+            email_exist = result.scalar_one_or_none()
+
+            if not email_exist:
+                return False
+            return True
+
+        except :
+            raise
+            
+async def Update_user_account_pass(email: str, password: str):
+    async with AsyncSessionLocal() as session:
+        try:
+            GetUser =  await session.execute(select(DatabaseSchema).where(DatabaseSchema.email ==email))
+            UserData = GetUser.scalar_one_or_none()
+            UserData.password = password
+            await session.commit()
+            return  True
+
+
+        except:
+           raise
+        
