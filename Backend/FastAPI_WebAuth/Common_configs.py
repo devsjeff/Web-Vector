@@ -18,3 +18,12 @@ GMAIL_APP_PASSWORD = os.getenv("EMAIL_APP_PASSWORD")
 
 if not GMAIL_EMAIL or (not GMAIL_APP_PASSWORD) :
     raise RuntimeError ("Gmail password or email missing")
+
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET :
+    raise RuntimeError ("Jwt Secret is missing")
+
+
+# """ change after dev """
+
+dev = False  

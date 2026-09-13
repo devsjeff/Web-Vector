@@ -3,7 +3,7 @@ from FastAPI_WebAuth.Common_configs import REDIS_URL
 
 redis = Redis.from_url(REDIS_URL , decode_responses=True )
 
-async def Set_email_with_otp_Signup(Email:str , otp:str , Expiry_in_Sec :int = 300)  -> dict:
+async def Set_email_with_otp_Signup(Email:str , otp:str , Expiry_in_Sec :int = 60)  -> dict:
     try:
         await redis.set(f"otp:{Email}",otp , ex = Expiry_in_Sec)
         return {"operation":True}
@@ -11,8 +11,11 @@ async def Set_email_with_otp_Signup(Email:str , otp:str , Expiry_in_Sec :int = 3
         return {"operation":False , "error":str(e)}
         
 async def Verify_Delete_Email_otp_signup(email: str, otp: str) -> dict:
+
+                            # brute Force guard did not added already using rate limiting and 
+                            # fast expiry (60 sec) LATER  CAN CONSIDER TO ADD
     """
-    Check OTP for email in Redis, delete it if it matches.
+    Check OTP for email in Redis, delete it if it matches.                      
     RETURNS: {"operation": True,  "match": True}
              {"operation": True,  "match": False}
              {"operation": False, "error": str}

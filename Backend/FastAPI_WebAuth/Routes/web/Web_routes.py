@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request,Response, status
 
 from FastAPI_WebAuth.Auth.Mail import Send_otp_For_Signup
 from FastAPI_WebAuth.Cache.redis_webAuth import Set_email_with_otp_Signup ,Verify_Delete_Email_otp_signup
@@ -6,7 +6,9 @@ from FastAPI_WebAuth.Routes.Types_pydantic import Email ,SignupType
 from FastAPI_WebAuth.Routes.config import limiter
 from FastAPI_WebAuth.db.web_db import check_user_exists , create_user_account
 from FastAPI_WebAuth.Auth.Argon2_pass import hash_password
+from FastAPI_WebAuth.Auth.jwt import create_access_token 
 
+from FastAPI_WebAuth.Common_configs import dev
 
 WEBrouter = APIRouter()
 
@@ -56,7 +58,7 @@ async def signup_otp(request: Request, email: Email):
 
 @WEBrouter.post("/Auth/VerifySignOtpCreateAcc")
 @limiter.limit("1/min")
-async def Verify_Del_signup_otp(request:Request , body: SignupType):
+async def Verify_Del_signup_otp(request:Request , response:Response,body: SignupType ):
 
     # 1) verify + consume OTP
     otp_result = await Verify_Delete_Email_otp_signup(body.email, str(body.otp))
@@ -86,6 +88,9 @@ async def Verify_Del_signup_otp(request:Request , body: SignupType):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Unable to create account",
         )
-
-    return {"message": "Account created"}
+    token = create_access_token(body.email)
+    response.set_cookie(key="access_token",value=token,httponly=True,secure= dev ,      # False in dev
+    samesite="lax", max_age=60 * 60 * 24 * 2,path="/" )
+    return("Account created") 
+    
     

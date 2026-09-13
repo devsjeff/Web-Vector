@@ -1,7 +1,7 @@
 "use client" ;
-
+import { useRouter } from "next/navigation"
 import { useState, useEffect, useRef, type RefObject } from "react";
-
+import {Frontend_Links} from "../../../configurations"
 import style from "./Profile.module.css";
 import Image from "next/image";
 import User from "../utility/Images/App_home/user.png";
@@ -10,6 +10,9 @@ import User from "../utility/Images/App_home/user.png";
 
 
 function Profile_Card({ cardRef }: { cardRef: RefObject<HTMLDivElement | null> }){
+
+const router = useRouter()
+
 return (
 <div ref={cardRef} className={style.profile_card}>
 
@@ -41,10 +44,9 @@ return (
       Help
     </div>
 
-    <div className={style.menu_item}>
-      Logout
-    </div>
-
+    <button  onClick={()=>{localStorage.removeItem("Login");router.push(Frontend_Links.Home_page);}} className={style.menu_item}> 
+      Logout  </button>
+    {/* later can call backend to delete token */}
   </div>
 
 </div>)

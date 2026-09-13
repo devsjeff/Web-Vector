@@ -1,6 +1,7 @@
 export const Frontend_Links = {
 
                             Landing_Page: "/",
+                            Home_page :"/Home" ,
                             Login_Page: "/Auth/Login",
                             Signup_Page: "/Auth/Signup",
                             Verify_otp : "/Auth/VerifySignOtp",

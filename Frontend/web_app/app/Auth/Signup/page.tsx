@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
 import { Backend_urls, Frontend_Links } from "../../configurations";
 import style from "./signup.module.css";
@@ -24,7 +24,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // 30-second OTP cooldown
+  // 100-second OTP cooldown
   const [otpCooldown, setOtpCooldown] = useState(0);
 
   /* ================= OTP TIMER ================= */
@@ -94,7 +94,7 @@ export default function SignupPage() {
 
       // OTP sent successfully
       setOtp("");
-      setOtpCooldown(30);
+      setOtpCooldown(100);
       return true;
     } catch (err) {
       console.error(err);
@@ -199,7 +199,7 @@ export default function SignupPage() {
             <h1>Create an account</h1>
 
             <p className={style.subtitle}>
-              Enter your email to get started
+              Enter your email to get starteda
             </p>
 
             {error && <div className={style.error}>{error}</div>}
