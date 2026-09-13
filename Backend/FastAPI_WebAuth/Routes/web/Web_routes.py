@@ -7,7 +7,6 @@ from FastAPI_WebAuth.Routes.config import limiter
 from FastAPI_WebAuth.db.web_db import check_user_exists , create_user_account
 from FastAPI_WebAuth.Auth.Argon2_pass import hash_password
 from FastAPI_WebAuth.Auth.jwt import create_access_token 
-
 from FastAPI_WebAuth.Common_configs import dev
 
 WEBrouter = APIRouter()
@@ -89,8 +88,14 @@ async def Verify_Del_signup_otp(request:Request , response:Response,body: Signup
             detail="Unable to create account",
         )
     token = create_access_token(body.email)
-    response.set_cookie(key="access_token",value=token,httponly=True,secure= dev ,      # False in dev
-    samesite="lax", max_age=60 * 60 * 24 * 2,path="/" )
-    return("Account created") 
+    response.set_cookie(
+    key="access_token",
+    value=token,
+    httponly=True,
+    secure=dev,        # False in dev
+    samesite="lax",
+    max_age=60 * 60 * 24 * 2,
+    path="/")
+    return({"message": "Account created"})
     
     
