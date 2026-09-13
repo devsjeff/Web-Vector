@@ -25,7 +25,7 @@ const router = useRouter();
     setLoading(true);
 
     try {
-      const response = await fetch( Backend_urls.Login_Auth , {
+      const response = await fetch( Backend_urls.Login, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

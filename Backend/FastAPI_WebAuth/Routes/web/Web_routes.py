@@ -2,9 +2,9 @@ from fastapi import APIRouter, HTTPException, Request,Response, status
 
 from FastAPI_WebAuth.Auth.Mail import Send_otp_For_Signup
 from FastAPI_WebAuth.Cache.redis_webAuth import Set_email_with_otp_Signup ,Verify_Delete_Email_otp_signup
-from FastAPI_WebAuth.Routes.Types_pydantic import Email ,SignupType
+from FastAPI_WebAuth.Routes.Types_pydantic import Email ,SignupType ,LoginType
 from FastAPI_WebAuth.Routes.config import limiter
-from FastAPI_WebAuth.db.web_db import check_user_exists , create_user_account
+from FastAPI_WebAuth.db.web_db import check_user_exists , create_user_account ,Login_email_pass_Get
 from FastAPI_WebAuth.Auth.Argon2_pass import hash_password
 from FastAPI_WebAuth.Auth.jwt import create_access_token 
 from FastAPI_WebAuth.Common_configs import dev
@@ -96,6 +96,36 @@ async def Verify_Del_signup_otp(request:Request , response:Response,body: Signup
     samesite="lax",
     max_age=60 * 60 * 24 * 2,
     path="/")
-    return({"message": "Account created"})
+    return {"message": "Account created"}
+    
+    
+
+@WEBrouter.post("/Auth/Login")
+@limiter.limit("2/min")
+async def LoginRoute(request:Request ,response:Response , body:LoginType):
+    matched = await Login_email_pass_Get(email=body.email ,password=body.password)
+    # print(f"debug matched={matched} type={type(matched)}") 
+    if isinstance(matched,str):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail= "server errors"
+        )
+    if not matched:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED ,
+            detail="Wrong email or password or maybe not Registered ")
+    
+    if matched :    
+        token = create_access_token(body.email)
+        response.set_cookie(
+            key="access_token" ,
+            value= token ,
+            httponly= True,
+            secure= dev ,
+            samesite= "lax" ,
+            max_age= 60 * 24  * 2,
+            path="/"
+        )
+        return {"message": "Login successful"}
     
     

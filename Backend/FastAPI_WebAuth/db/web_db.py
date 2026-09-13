@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import create_async_engine,async_sessionmaker,AsyncS
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 from FastAPI_WebAuth.Common_configs import DATABASE_URL
-
+from FastAPI_WebAuth.Auth.Argon2_pass import verify_password
 
 # ================= ENGINE & SESSION =================
 
@@ -73,3 +73,25 @@ async def create_user_account(email: str, password: str):
         except SQLAlchemyError as e:
             await session.rollback()
             return {"operation_success": False, "error": str(e)}
+        
+        
+        
+        # KEEPING SIMPLE NEXT FUNCTIONS NO HEAVY ERROR HANDLING ITS GOING MESSY SO
+        
+async def Login_email_pass_Get(email:str ,password :str) -> bool|str :
+    """
+    Returns True if email Password matched with db email_pass  
+    returns false on not match
+    """
+    try : 
+        async with AsyncSessionLocal() as session:
+            GetUser =  await session.execute(select(DatabaseSchema).where(DatabaseSchema.email ==email))
+            UserData = GetUser.scalar_one_or_none()
+            if not UserData:
+                return  False
+            result = await verify_password(UserData.password ,password)
+            return result
+    except Exception as e :
+        return "string"
+            
+    

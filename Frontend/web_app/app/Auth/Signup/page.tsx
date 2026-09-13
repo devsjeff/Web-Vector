@@ -200,7 +200,7 @@ export default function SignupPage() {
             <h1>Create an account</h1>
 
             <p className={style.subtitle}>
-              Enter your email to get starteda
+              Enter your email to get started
             </p>
 
             {error && <div className={style.error}>{error}</div>}
