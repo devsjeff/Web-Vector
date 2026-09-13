@@ -1,19 +1,22 @@
-const Home = "http://127.0.0.1:8000"
-export const Backend_urls = {url:Home , 
-                            HomeAuth :Home+"/Auth" ,
-                            Login_Auth : Home + "/Auth/Login" ,
-                            Signup_Auth : Home + "/Auth/Signup" ,
-                            Forgot_password : Home +"/Auth/ForgotPassword",
-                            Application : Home + "/Auth/Application" ,
-                            Signup_OTP : Home + "/Auth/SignupOTP"
+export const Frontend_Links = {
 
-}
+                            Landing_Page: "/",
+                            Login_Page: "/Auth/Login",
+                            Signup_Page: "/Auth/Signup",
+                            Verify_otp : "/Auth/VerifySignOtp",
+                            Forgot_password: "/Auth/ForgotPassword",
+                            Application: "/Application",
+};
 
-const Frontend_Home = "http://localhost:3000/"
-export const Frontend_Links = {Landing_Page : Frontend_Home,
-                                Login_Page : Frontend_Home + "Auth/Login" ,
-                                Signup_Page : Frontend_Home + "Auth/Signup" ,
-                                Forgot_password : Frontend_Home +"Auth/ForgotPassword",
-                                Application : Frontend_Home + "Auth/Application" 
 
-}
+
+const Backend_Home = "http://127.0.0.1:8000";
+
+                                export const Backend_urls = {
+                                Login: `${Backend_Home}/Auth/Login`,
+                                Signup: `${Backend_Home}/Auth/Signup`,
+                                SignupSendOTP: `${Backend_Home}/Auth/SignupSendOTP`,
+                                Verify_otp_Create_Acc : `${Backend_Home}/Auth/VerifySignOtpCreateAcc`,
+                                
+};
+// 

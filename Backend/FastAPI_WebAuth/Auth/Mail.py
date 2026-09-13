@@ -6,7 +6,7 @@ from FastAPI_WebAuth.Auth.otp import Generate_Otp
 from FastAPI_WebAuth.Common_configs import GMAIL_APP_PASSWORD, GMAIL_EMAIL
 
 
-async def Send_otp(email: str) -> dict:
+async def Send_otp_For_Signup(email: str) -> dict:
     otp = Generate_Otp()
     message = EmailMessage()
     message["From"] = GMAIL_EMAIL
@@ -28,9 +28,11 @@ async def Send_otp(email: str) -> dict:
         return {"operation_success": True, "otp": otp}
     except Exception as e:
         return {"operation_success": False, "error": str(e)}
+    
+    
 
 
 if __name__ == "__main__":
     import asyncio
 
-    result = asyncio.run(Send_otp(GMAIL_EMAIL))
+    result = asyncio.run(Send_otp_For_Signup(GMAIL_EMAIL))

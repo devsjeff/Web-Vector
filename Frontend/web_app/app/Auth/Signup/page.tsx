@@ -6,7 +6,7 @@ import { Backend_urls, Frontend_Links } from "../../configurations";
 import style from "./signup.module.css";
 import { useRouter } from "next/navigation";
 
-type Step = "email" | "otp" | "details";
+type Step = "email" | "details";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -30,126 +30,69 @@ export default function SignupPage() {
   /* ================= OTP TIMER ================= */
 
   useEffect(() => {
-    // No timer needed
-    if (otpCooldown <= 0) {
-      return;
-    }
+    if (otpCooldown <= 0) return;
 
     const timer = setInterval(() => {
       setOtpCooldown((time) => time - 1);
     }, 1000);
 
-    // VERY IMPORTANT:
-    // Stop the timer when component disappears
-    // or before a new timer is created.
     return () => clearInterval(timer);
   }, [otpCooldown]);
 
   /* ================= SEND OTP ================= */
 
-  async function handleSendOtp(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function sendOtp(): Promise<boolean> {
     setError("");
 
     if (!email) {
       setError("Please enter your email.");
-      return;
+      return false;
     }
 
-    // Frontend protection
-    if (otpCooldown > 0) {
-      return;
-    }
+    if (otpCooldown > 0) return false;
 
     setLoading(true);
 
     try {
-      const response = await fetch(Backend_urls.Signup_OTP, {
+      const response = await fetch(Backend_urls.SignupSendOTP, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
       });
 
       if (response.status === 409) {
         setError("An account with this email already exists. Please login.");
-        return;
+        return false;
       }
 
       if (response.status === 429) {
         setError("Too many requests. Please try again later.");
-        return;
+        return false;
       }
 
       if (!response.ok) {
         setError("Unable to send OTP.");
-        return;
+        return false;
       }
 
-      // OTP successfully sent
+      // OTP sent successfully
       setOtp("");
       setOtpCooldown(30);
-      setStep("otp");
-
-    } catch (error) {
-      console.error(error);
+      return true;
+    } catch (err) {
+      console.error(err);
       setError("Unable to connect to the server.");
+      return false;
     } finally {
       setLoading(false);
     }
   }
 
-  /* ================= VERIFY OTP ================= */
-
-  async function handleVerifyOtp(event: FormEvent<HTMLFormElement>) {
+  async function handleSendOtp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError("");
 
-    if (otp.length !== 6) {
-      setError("Please enter the 6-digit OTP.");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const response = await fetch(Backend_urls.Signup_OTP, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          otp,
-        }),
-      });
-
-      if (response.status === 400) {
-        setError("Wrong or expired OTP.");
-        return;
-      }
-
-      if (response.status === 429) {
-        setError("Too many attempts. Please try again later.");
-        return;
-      }
-
-      if (!response.ok) {
-        setError("Unable to verify OTP.");
-        return;
-      }
-
-      setStep("details");
-
-    } catch (error) {
-      console.error(error);
-      setError("Unable to connect to the server.");
-    } finally {
-      setLoading(false);
-    }
+    const ok = await sendOtp();
+    if (ok) setStep("details");
   }
 
   /* ================= CREATE ACCOUNT ================= */
@@ -157,6 +100,11 @@ export default function SignupPage() {
   async function handleCreateAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+
+    if (otp.length !== 6) {
+      setError("Please enter the 6-digit OTP.");
+      return;
+    }
 
     if (!firstName || !lastName || !password || !confirmPassword) {
       setError("Please fill in all fields.");
@@ -176,14 +124,13 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      const response = await fetch(Backend_urls.Signup_Auth, {
+      const response = await fetch(Backend_urls.Verify_otp_Create_Acc, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
           email,
+          otp,
           first_name: firstName,
           last_name: lastName,
           password,
@@ -191,7 +138,7 @@ export default function SignupPage() {
       });
 
       if (response.status === 400) {
-        setError("Signup session expired. Please start again.");
+        setError("Wrong or expired OTP.");
         return;
       }
 
@@ -206,9 +153,8 @@ export default function SignupPage() {
       }
 
       router.push(Frontend_Links.Application);
-
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       setError("Unable to connect to the server.");
     } finally {
       setLoading(false);
@@ -219,17 +165,8 @@ export default function SignupPage() {
 
   function handleBack() {
     setError("");
-
-    if (step === "otp") {
-      setStep("email");
-      setOtp("");
-      return;
-    }
-
-    if (step === "details") {
-      setStep("otp");
-      return;
-    }
+    setStep("email");
+    setOtp("");
   }
 
   return (
@@ -238,7 +175,7 @@ export default function SignupPage() {
 
         <div className={style.logo}>WEB VECTOR</div>
 
-        {/* ================= EMAIL ================= */}
+        {/* ================= STEP 1: EMAIL ================= */}
 
         {step === "email" && (
           <>
@@ -262,6 +199,7 @@ export default function SignupPage() {
                   onChange={(event) => setEmail(event.target.value)}
                   disabled={loading}
                   autoComplete="email"
+                  autoFocus
                 />
               </div>
 
@@ -280,9 +218,9 @@ export default function SignupPage() {
           </>
         )}
 
-        {/* ================= OTP ================= */}
+        {/* ================= STEP 2: OTP + DETAILS ================= */}
 
-        {step === "otp" && (
+        {step === "details" && (
           <>
             <button
               type="button"
@@ -293,19 +231,18 @@ export default function SignupPage() {
               ← Back
             </button>
 
-            <h1>Verify email</h1>
+            <h1>Finish signup</h1>
 
             <p className={style.subtitle}>
               Enter the 6-digit code sent to
             </p>
 
-            <p className={style.emailText}>
-              {email}
-            </p>
+            <p className={style.emailText}>{email}</p>
 
             {error && <div className={style.error}>{error}</div>}
 
-            <form onSubmit={handleVerifyOtp}>
+            <form onSubmit={handleCreateAccount}>
+
               <div className={style.field}>
                 <label htmlFor="otp">OTP</label>
 
@@ -325,67 +262,9 @@ export default function SignupPage() {
                 />
               </div>
 
-              <button
-                type="submit"
-                className={style.signupButton}
-                disabled={loading}
-              >
-                {loading ? "Verifying..." : "Verify OTP →"}
-              </button>
-            </form>
-
-            <p className={style.smallText}>
-              Did not receive it?
-            </p>
-
-            <button
-              type="button"
-              className={style.backButton}
-              disabled={otpCooldown > 0 || loading}
-              onClick={() => {
-                // Reuse the same email request logic
-                const fakeEvent = {
-                  preventDefault: () => {},
-                } as FormEvent<HTMLFormElement>;
-
-                handleSendOtp(fakeEvent);
-              }}
-            >
-              {otpCooldown > 0
-                ? `Resend OTP in ${otpCooldown}s`
-                : "Resend OTP"}
-            </button>
-          </>
-        )}
-
-        {/* ================= DETAILS ================= */}
-
-        {step === "details" && (
-          <>
-            <button
-              type="button"
-              className={style.backButton}
-              onClick={handleBack}
-              disabled={loading}
-            >
-              ← Back
-            </button>
-
-            <h1>Finish signup</h1>
-
-            <p className={style.subtitle}>
-              Create your Web Vector account
-            </p>
-
-            {error && <div className={style.error}>{error}</div>}
-
-            <form onSubmit={handleCreateAccount}>
-
               <div className={style.nameRow}>
                 <div className={style.field}>
-                  <label htmlFor="firstName">
-                    First name
-                  </label>
+                  <label htmlFor="firstName">First name</label>
 
                   <input
                     id="firstName"
@@ -401,9 +280,7 @@ export default function SignupPage() {
                 </div>
 
                 <div className={style.field}>
-                  <label htmlFor="lastName">
-                    Last name
-                  </label>
+                  <label htmlFor="lastName">Last name</label>
 
                   <input
                     id="lastName"
@@ -420,19 +297,7 @@ export default function SignupPage() {
               </div>
 
               <div className={style.field}>
-                <label>Email</label>
-
-                <input
-                  type="email"
-                  value={email}
-                  disabled
-                />
-              </div>
-
-              <div className={style.field}>
-                <label htmlFor="password">
-                  Password
-                </label>
+                <label htmlFor="password">Password</label>
 
                 <input
                   id="password"
@@ -470,12 +335,22 @@ export default function SignupPage() {
                 className={style.signupButton}
                 disabled={loading}
               >
-                {loading
-                  ? "Creating account..."
-                  : "Create account →"}
+                {loading ? "Creating account..." : "Create account →"}
               </button>
-
             </form>
+
+            <p className={style.smallText}>Did not receive it?</p>
+
+            <button
+              type="button"
+              className={style.backButton}
+              disabled={otpCooldown > 0 || loading}
+              onClick={() => sendOtp()}
+            >
+              {otpCooldown > 0
+                ? `Resend OTP in ${otpCooldown}s`
+                : "Resend OTP"}
+            </button>
           </>
         )}
 
@@ -484,9 +359,7 @@ export default function SignupPage() {
         <div className={style.login}>
           <span>Already have an account?</span>
 
-          <Link href={Frontend_Links.Login_Page}>
-            Sign in
-          </Link>
+          <Link href={Frontend_Links.Login_Page}>Sign in</Link>
         </div>
 
         <p className={style.terms}>

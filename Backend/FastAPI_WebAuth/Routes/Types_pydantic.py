@@ -1,4 +1,4 @@
-from pydantic import BaseModel , EmailStr
+from pydantic import BaseModel , EmailStr ,Field
 
 class Token (BaseModel):
     token :str
@@ -14,10 +14,8 @@ class LoginType (BaseModel):
                     
                                      
 class SignupType (BaseModel):
-    name :str
-    lastname : str
-    otp : str
-    email : EmailStr
-    password : str
+    otp : str = Field(min_length=6 ,max_length=6)
+    email : EmailStr 
+    password : str =  Field(min_length=6 , max_length=128)
 
 #                         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
