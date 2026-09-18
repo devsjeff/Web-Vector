@@ -30,15 +30,22 @@ export default function Header() {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:8000/auth/me", {
+      const login = localStorage.getItem("Login") 
+      
+      if (!login) {
+      router.push("/Auth/Login");
+      return;}
+
+      const response = await fetch("http://localhost:8000/auth", {
         credentials: "include",
-      });
+      })
 
       if (response.ok) {
         router.push("/Application");
       } else {
         router.push("/Auth/Login");
       }
+    
     } catch (error) {
       console.error(error);
       router.push("/Auth/Login");

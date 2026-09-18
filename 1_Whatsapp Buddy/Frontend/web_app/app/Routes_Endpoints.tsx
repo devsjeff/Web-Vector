@@ -1,8 +1,8 @@
 export const Routes = {
-  home: "/",
+  Entry: "/",
+  Home : "/Home" ,
   Application: "/Application",
   login: "/Auth/login",
   signup: "/Auth/signup",
-  forgotPassword: "/Auth/ForgotPassword",
-  about: "/about",
+  forgotPassword: "/Auth/ForgotPassword"
 };

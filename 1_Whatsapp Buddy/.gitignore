@@ -1,16 +1,72 @@
-# Ignore all Node dependencies anywhere
-**/node_modules/
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# Baileys =====================
+Backend/whatsapp_baileys/auth/
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# =========================
+# Node.js
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # Next.js
-**/.next/
+.next/
+out/
 
-# Baileys credentials and session data
-**/whatsapp_baileys/auth/
-**/whatsapp_baileys/session/
-**/auth_info_baileys/
-**/baileys_auth_info/
+# Vite
+dist/
 
-# Environment files
-.env
-.env.local
-.env.*.local
+# =========================
+# IDE / Editors
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+
+# =========================
+# Local databases
+# =========================
+*.sqlite
+*.sqlite3

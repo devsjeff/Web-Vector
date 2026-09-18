@@ -16,10 +16,6 @@ export default function AppHeader() {
         <Image src={Logo} alt="Web Vector logo" width={36} height={36} priority className="app-brand-logo" />
         <span className={firaSans.className}>WEB VECTOR</span>
       </a>
-
-      <div className="app-header-title">
-        <span>Application</span>
-      </div>
     </header>
   );
 }
