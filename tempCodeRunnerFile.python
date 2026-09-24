@@ -1,0 +1,23 @@
+def HelloWorld(Print):
+    print("Print")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+HelloWorld(print)
