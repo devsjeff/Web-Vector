@@ -12,9 +12,13 @@ export default function Whatsapp() {
     try {
       setLoading(true);
 
-      const response = await fetch("http://localhost:3000/whatsapp/qr", {
+      const response = await fetch("http://localhost:3001/whatsapp/qr", {
         credentials: "include",
       });
+
+      if (!response.ok) {
+        throw new Error(`QR request failed (${response.status})`);
+      }
 
       const data = await response.json();
 
@@ -55,7 +59,12 @@ export default function Whatsapp() {
 
       {qr && (
         <div>
-          <QRCodeSVG value={qr} size={300} />
+          <QRCodeSVG
+  value={qr}
+  size={300}
+  level="M"
+  marginSize={4}
+/>
         </div>
       )}
 
