@@ -1,6 +1,15 @@
 import style from "./Whatsapp.module.css";
+import {useEffect } from "react" ;
 
 export default function Whatsapp() {
+  useEffect(() => {
+    async function getStatus(): Promise<void> {
+     
+    }
+
+    void getStatus();
+  }, []);
+
   return (
     <section className={style.container}>
       <header className={style.header}>
