@@ -1,8 +1,4 @@
-import { config } from "dotenv";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
-config({ path: resolve(dirname(fileURLToPath(import.meta.url)), "../.env") });
+import "dotenv/config";
 
 function get(name: string): string {
     const value = process.env[name];
@@ -13,9 +9,12 @@ function get(name: string): string {
 }
 
 export const env = {
-    MONGO_URL: get("MONGO_URL"),
+    DATABASE_URL: get("DATABASE_URL"),
     REDIS_URL: get("REDIS_URL"),
     JWT_SECRET: get("JWT_SECRET"),
+
+    MONGO_URL : get("MONGO_URL") ,
+
     KAFKA_BROKERS: get("KAFKA_BROKERS"),
     KAFKA_CLIENT_ID: get("KAFKA_CLIENT_ID"),
     KAFKA_GROUP_ID: get("KAFKA_GROUP_ID"),

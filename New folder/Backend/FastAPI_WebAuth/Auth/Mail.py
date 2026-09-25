@@ -1,0 +1,30 @@
+from email.message import EmailMessage
+
+import aiosmtplib
+
+from FastAPI_WebAuth.Auth.otp import Generate_Otp
+from FastAPI_WebAuth.Common_configs import GMAIL_APP_PASSWORD, GMAIL_EMAIL
+
+
+async def Send_otp_For_Signup(email: str) -> dict:
+    otp = Generate_Otp()
+    message = EmailMessage()
+    message["From"] = GMAIL_EMAIL
+    message["To"] = email
+    message["Subject"] = "Web-Vector Email Verification"
+    message.set_content(
+        f"WEB VECTOR\n\n\nYour OTP is: {otp}\n\nExpires in 2 minutes."
+    )
+
+    try:
+        await aiosmtplib.send(
+            message,
+            hostname="smtp.gmail.com",
+            port=587,
+            start_tls=True,
+            username=GMAIL_EMAIL,
+            password=GMAIL_APP_PASSWORD,
+        )
+        return {"operation_success": True, "otp": otp}
+    except Exception as e:
+        return {"operation_success": False, "error": str(e)}
