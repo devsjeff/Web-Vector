@@ -1,20 +1,26 @@
-import Fastify , { FastifyError }from "fastify" ;
+import Fastify from "fastify" ;
+import type { FastifyError } from "fastify";
 import helmet from "@fastify/helmet"
 import cors from "@fastify/cors"
 import ratelimit from "@fastify/rate-limit"
 import sensible from "@fastify/sensible"
-import { tr } from "zod/v4/locales/index.js";
+import cookie from "@fastify/cookie";
 
-import {env} from "../CommonENV"
-import {WhatsappRoutes} from "./Routes/Whatsapp/whatsappRoutes"
+
+
+import {env} from "../CommonENV.ts"
+import {WhatsappRoutes} from "./Routes/Whatsapp/whatsappRoutes.ts"
 
 const app = Fastify({logger:true , trustProxy:true , bodyLimit:1_048_576})
 
 
 async function main (){
     await app.register(helmet, {global:true}) ;
-
-    await app.register(cors,{origin:env.FASTIFY_CORS_HOST_ORIGIN?.split(',') ?? false,credentials:true}) ;
+    await app.register(cookie);
+    await app.register(cors, {
+      origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+      credentials: true,
+    });
 
     await app.register(ratelimit , {global:true , max:5 , timeWindow:"1 minute"} ) ;
 
@@ -32,7 +38,7 @@ async function main (){
         }); 
             });
    
-  await app.listen({port: Number(env.FASTIFY_PORT),host: env.FASTIFY_CORS_HOST_ORIGIN,});
+   await app.listen({port: Number(env.FASTIFY_PORT),host: "0.0.0.0"});
 
 
 }

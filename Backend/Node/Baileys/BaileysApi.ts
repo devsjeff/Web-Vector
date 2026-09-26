@@ -36,8 +36,10 @@ import type { QrResult, SessionStatus } from "./BaileysTypes.ts";
 // If Baileys gives no QR within 30 seconds, this throws an error (Fastify turns it into a 500).
 export async function getQrForUser(email: string): Promise<QrResult> {
   const qr = await waitForQrCode(email);
+  console.log(qr)
 
   if (qr === null) return { status: "connected" };
+  
 
   return { status: "qr", qr };
 }
