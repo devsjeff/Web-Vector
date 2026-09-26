@@ -37,7 +37,9 @@ export const WhatsappRoutes : FastifyPluginAsync = async(app)=>{
 
 
 
-  app.get("/whatsapp/status", async (request , reply)=>{
+  app.get("/whatsapp/status", {
+    config: { rateLimit: { max: 40, timeWindow: "1 minute" } },
+  }, async (request , reply)=>{
     const token = request.cookies.access_token;
     if(!token){
       return reply.unauthorized("Not logged in");
@@ -56,7 +58,7 @@ export const WhatsappRoutes : FastifyPluginAsync = async(app)=>{
 
 
 
-  app.get("/whatsapp/logout", async (request , reply)=>{
+  app.delete("/whatsapp/logout", async (request , reply)=>{
     const token = request.cookies.access_token;
     if(!token){
       return reply.unauthorized("Not logged in");
