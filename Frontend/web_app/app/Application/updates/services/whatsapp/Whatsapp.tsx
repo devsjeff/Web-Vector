@@ -4,6 +4,8 @@ import style from "./Whatsapp.module.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
+import ConfigCard, { WhatsappBotConfig } from "./Settings/settings";
+
 const API = "http://localhost:3001";
 
 const POLL_QR = 2_000;
@@ -71,6 +73,10 @@ export default function Whatsapp() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+
+  // Renamed from settingscard/setstngcard — same idea (is the settings panel
+  // open or not), just spelled properly so it doesn't look like a typo later.
+  const [showSettings, setShowSettings] = useState(false);
 
   // Lets the logout handler kick the poll loop without waiting for the next tick.
   const forceRefreshRef = useRef<() => void>(() => {});
@@ -150,6 +156,31 @@ export default function Whatsapp() {
       setActionError(friendlyError(err, "Could not log out"));
     } finally {
       setLoggingOut(false);
+    }
+  }, []);
+
+  // NEW: this is what was missing before — Update button on the config card
+  // used to just close the panel and throw the data away. Now it actually
+  // posts to the backend, following the exact same fetch/error pattern as
+  // the rest of this file (credentials include, readErrorMessage, friendlyError).
+  const handleConfigUpdate = useCallback(async (config: WhatsappBotConfig) => {
+    setActionError(null);
+    try {
+      const res = await fetch(`${API}/whatsapp/config`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(config),
+      });
+      if (!res.ok) {
+        throw new Error(
+          await readErrorMessage(res, `Saving settings failed (${res.status})`),
+        );
+      }
+      setShowSettings(false);
+    } catch (err) {
+      console.error("Failed to save settings:", err);
+      setActionError(friendlyError(err, "Could not save settings"));
     }
   }, []);
 
@@ -363,12 +394,39 @@ export default function Whatsapp() {
 
         <article className={style.card}>
           <span className={style.cardLabel}>Settings</span>
-          <p className={style.cardValue}>Automation settings</p>
-          <p className={style.cardMuted}>
-            This is where your future WhatsApp controls can live.
-          </p>
+
+          {/* There used to be two identical buttons here (copy-paste leftover)
+              — only one does anything useful, so the duplicate is gone. */}
+          <button
+            type="button"
+            className={style.g3hr8hehf}
+            onClick={() => setShowSettings(true)}
+          >
+            <p className={style.cardValue}>Automation settings</p>
+            <p className={style.cardMuted}>
+              This is where your future WhatsApp controls can live.
+            </p>
+          </button>
         </article>
       </div>
+
+      {/* Settings overlay — only exists in the DOM while showSettings is true.
+          Before, this whole block (including the close button) was always
+          rendered, sitting at the bottom of the page even when "closed". */}
+      {showSettings && (
+        <div className={style.settingCard}>
+          <div className={style.settingCardPanel}>
+            <button
+              type="button"
+              className={style.settingCardClose}
+              onClick={() => setShowSettings(false)}
+            >
+              Close
+            </button>
+            <ConfigCard onUpdate={handleConfigUpdate} />
+          </div>
+        </div>
+      )}
     </section>
   );
 }

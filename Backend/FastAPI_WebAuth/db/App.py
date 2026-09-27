@@ -31,9 +31,9 @@ class ChatMemories(Base):
     __tablename__ = "memory"
     id: Mapped[int] = mapped_column(primary_key=True)
     chatId: Mapped[str] = mapped_column(String, nullable=False)
-    custom_mode: Mapped[str] = mapped_column(Text)
-    custom_instructions: Mapped[str] = mapped_column(Text)
-    custom_memory: Mapped[str] = mapped_column(Text)
+    # custom_mode: Mapped[str] = mapped_column(Text)
+    # custom_instructions: Mapped[str] = mapped_column(Text)         #######Later in updates
+    # custom_memory: Mapped[str] = mapped_column(Text)
     sender_text: Mapped[str] = mapped_column(Text)
     contact_text: Mapped[str] = mapped_column(Text)
     embedding: Mapped[list[float]] = mapped_column(Vector(768), nullable=False)
@@ -72,9 +72,9 @@ async def UserWtsAcc_Write(
 async def ChatMemo_Write(
     chatId: str,
     Embedding: list[float],
-    Custom_mode: str = "Default",
-    Custom_instructions: str = "Default",
-    Custom_memory: str = "Default",
+    # Custom_mode: str = "Default",
+    # Custom_instructions: str = "Default",
+    # Custom_memory: str = "Default",
     Sender_text: str = "Default",
     Contact_text: str = "Default",
 ):
@@ -82,9 +82,9 @@ async def ChatMemo_Write(
         try:
             Users_chat_memo = ChatMemories(
                 chatId=chatId,
-                custom_mode=Custom_mode,
-                custom_instructions=Custom_instructions,
-                custom_memory=Custom_memory,
+                # custom_mode=Custom_mode,
+                # custom_instructions=Custom_instructions,
+                # custom_memory=Custom_memory,
                 sender_text=Sender_text,
                 contact_text=Contact_text,
                 embedding=Embedding,

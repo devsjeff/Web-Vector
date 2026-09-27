@@ -1,0 +1,132 @@
+/* This file assumes your theme variables (--background, --panel, --line, etc.)
+   are already declared on :root in your globals.css — the ones you pasted.
+   We only *use* var(--xyz) here, never redefine them. */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 24px;
+  color: var(--foreground);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.select {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--foreground);
+  font-size: 0.9rem;
+  outline: none;
+  appearance: none;
+}
+
+.select:focus-visible {
+  border-color: var(--accent);
+}
+
+.textarea {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--foreground);
+  font-size: 0.88rem;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+}
+
+.textarea:focus-visible {
+  border-color: var(--accent);
+}
+
+.textarea::placeholder {
+  color: var(--muted-dark);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.status {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.button {
+  background: var(--warm);
+  color: var(--background);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--warm-dark);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: 16px;
+  }
+}
