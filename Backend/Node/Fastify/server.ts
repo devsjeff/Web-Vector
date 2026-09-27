@@ -17,11 +17,14 @@ const app = Fastify({logger:true , trustProxy:true , bodyLimit:1_048_576})
 async function main (){
     await app.register(helmet, {global:true}) ;
     await app.register(cookie);
-    await app.register(cors, {
-      origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
-      credentials: true,
-    });
-
+ await app.register(cors, {
+  origin: [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+  ],
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+});
     await app.register(ratelimit , {global:true , max:5 , timeWindow:"1 minute"} ) ;
 
     await app.register(sensible);

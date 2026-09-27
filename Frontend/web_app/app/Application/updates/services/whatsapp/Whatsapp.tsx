@@ -12,16 +12,22 @@ const POLL_CONNECTED = 30_000;
 const POLL_HIDDEN = 60_000;
 const QR_TTL = 16_000;
 
-// This is the EXACT shape Fastify's GET /whatsapp/status sends back
-// (see Node/Baileys/BaileysTypes.ts -> SessionStatus). The field is called "state",
-// and its real values are "not_started" | "connecting" | "qr" | "open" | "closed" —
-// there is no value called "connected". The old code here read "status" (wrong field
-// name) and compared against "connected" (a value the backend never sends), so the
-// status pill and the polling speed were both silently broken from day one.
+/*
+ * The backend (Fastify + Baileys) sends `state` on GET /whatsapp/status.
+ * Real values: "not_started" | "connecting" | "qr" | "open" | "closed".
+ * Anything else is treated as "closed" so the UI always ends up in a known state.
+ */
+type SessionState =
+  | "checking"
+  | "not_started"
+  | "connecting"
+  | "qr"
+  | "open"
+  | "closed";
+
 type StatusData = { state?: string; whatsappNumber?: string | null };
 
-// Turns the backend's internal word into something a person reads on screen.
-const STATUS_LABELS: Record<string, string> = {
+const STATUS_LABELS: Record<SessionState, string> = {
   checking: "Checking…",
   not_started: "Not connected",
   connecting: "Connecting…",
@@ -30,99 +36,129 @@ const STATUS_LABELS: Record<string, string> = {
   closed: "Disconnected",
 };
 
+const KNOWN_STATES: readonly SessionState[] = [
+  "not_started",
+  "connecting",
+  "qr",
+  "open",
+  "closed",
+];
+
+function normalizeState(raw: string | undefined): SessionState {
+  return KNOWN_STATES.includes(raw as SessionState)
+    ? (raw as SessionState)
+    : "closed";
+}
+
 function friendlyError(err: unknown, fallback: string): string {
   if (err instanceof TypeError && /network|fetch/i.test(err.message)) {
     return "Cannot reach the server.";
   }
-  if (err instanceof Error && err.message) {
-    return err.message;
-  }
+  if (err instanceof Error && err.message) return err.message;
   return fallback;
 }
 
+async function readErrorMessage(res: Response, fallback: string) {
+  const body = await res.json().catch(() => null);
+  return body?.message ?? fallback;
+}
+
 export default function Whatsapp() {
+  const [status, setStatus] = useState<SessionState>("checking");
   const [whatsappNumber, setWhatsappNumber] = useState<string | null>(null);
   const [qr, setQr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [qrBusy, setQrBusy] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [status, setStatus] = useState("checking");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
-  const qrTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The polling effect below fills this in. Calling it re-checks status RIGHT NOW
-  // instead of waiting for the next scheduled tick — used right after logout.
+  // Lets the logout handler kick the poll loop without waiting for the next tick.
   const forceRefreshRef = useRef<() => void>(() => {});
 
+  // Used inside the silent QR refresh to decide whether a failure is worth showing.
+  const qrRef = useRef<string | null>(null);
+  useEffect(() => {
+    qrRef.current = qr;
+  }, [qr]);
+
+  /* ------------------------------------------------------------------ API -- */
+
   const fetchStatus = useCallback(async (): Promise<StatusData> => {
-    const res = await fetch(`${API}/whatsapp/status`, { credentials: "include" });
-    if (!res.ok) throw new Error(`status ${res.status}`);
+    const res = await fetch(`${API}/whatsapp/status`, {
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error(`Status check failed (${res.status})`);
     return res.json();
   }, []);
 
   const fetchQr = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    if (!silent) setErrorMessage(null);
+    if (!silent) {
+      setQrBusy(true);
+      setActionError(null);
+    }
     try {
-      const res = await fetch(`${API}/whatsapp/qr`, { credentials: "include" });
+      const res = await fetch(`${API}/whatsapp/qr`, {
+        credentials: "include",
+      });
       if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.message ?? `QR request failed (${res.status})`);
+        throw new Error(
+          await readErrorMessage(res, `QR request failed (${res.status})`),
+        );
       }
       const data = await res.json();
 
-      if (data.status === "qr" && data.qr) {
+      if (data?.status === "qr" && data.qr) {
         setQr(data.qr);
-        if (qrTimerRef.current) clearTimeout(qrTimerRef.current);
-        qrTimerRef.current = setTimeout(() => setQr(null), QR_TTL);
       } else {
         setQr(null);
-        // Backend responded but no QR available (e.g. already connected / timed out).
-        if (!silent && data.message) {
-          setErrorMessage(data.message);
-        }
+        if (!silent && data?.message) setActionError(data.message);
       }
     } catch (err) {
       console.error("Failed to get QR:", err);
-      if (!silent) setErrorMessage(friendlyError(err, "Could not load QR"));
+      // A silent background refresh may fail quietly — but if there is no QR
+      // on screen yet, the user needs to know something is wrong.
+      if (!silent || !qrRef.current) {
+        setActionError(friendlyError(err, "Could not load the QR code"));
+      }
     } finally {
-      if (!silent) setLoading(false);
+      if (!silent) setQrBusy(false);
     }
   }, []);
 
-  /* ---------- log out, clear the screen right away, then let the next status check confirm it ---------- */
   const handleLogout = useCallback(async () => {
     setLoggingOut(true);
-    setErrorMessage(null);
+    setActionError(null);
     try {
-      const res = await fetch(`${API}/whatsapp/logout`, { method: "DELETE", credentials: "include" });
+      const res = await fetch(`${API}/whatsapp/logout`, {
+        method: "DELETE",
+        credentials: "include",
+      });
       if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.message ?? `Logout failed (${res.status})`);
+        throw new Error(
+          await readErrorMessage(res, `Logout failed (${res.status})`),
+        );
       }
 
-      // Don't sit and wait for the next scheduled poll (could be up to POLL_CONNECTED = 30s
-      // away) to notice we logged out — clear the screen immediately...
-      if (qrTimerRef.current) clearTimeout(qrTimerRef.current);
+      // Clear the screen straight away so the click feels instant; the server
+      // remains the source of truth and we ask it to confirm right after.
       setQr(null);
       setWhatsappNumber(null);
       setStatus("not_started");
-
-      // ...then ask the backend to confirm right now. The server stays the source of truth;
-      // this optimistic update is only there so the button doesn't feel like it did nothing.
       forceRefreshRef.current();
     } catch (err) {
       console.error("Failed to log out:", err);
-      setErrorMessage(friendlyError(err, "Could not log out"));
+      setActionError(friendlyError(err, "Could not log out"));
     } finally {
       setLoggingOut(false);
     }
   }, []);
 
-  /* ---------- adaptive status polling ---------- */
+  /* --------------------------------------------------- status polling loop -- */
+
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    let lastStatus = "checking";
+    let lastState: SessionState = "checking";
 
     const schedule = (ms: number) => {
       if (timer) clearTimeout(timer);
@@ -133,18 +169,26 @@ export default function Whatsapp() {
       try {
         const data = await fetchStatus();
         if (cancelled) return;
-        lastStatus = data.state ?? "checking";
-        setStatus(lastStatus);
+
+        lastState = normalizeState(data.state);
+        setStatus(lastState);
         setWhatsappNumber(data.whatsappNumber ?? null);
+        setConnectionError(null);
       } catch (err) {
-        if (!cancelled) console.error("status poll failed:", err);
+        if (cancelled) return;
+        console.error("Status poll failed:", err);
+        setConnectionError(
+          friendlyError(err, "Lost connection to the server."),
+        );
       }
       if (cancelled) return;
 
       const base =
-        lastStatus === "open" ? POLL_CONNECTED
-        : lastStatus === "qr" ? POLL_QR
-        : POLL_IDLE;
+        lastState === "open"
+          ? POLL_CONNECTED
+          : lastState === "qr"
+            ? POLL_QR
+            : POLL_IDLE;
 
       schedule(document.hidden ? Math.max(base, POLL_HIDDEN) : base);
     };
@@ -157,7 +201,7 @@ export default function Whatsapp() {
     const onVisibility = () => {
       if (!document.hidden) {
         if (timer) clearTimeout(timer);
-        void run(); // refresh immediately when the user comes back
+        void run();
       }
     };
 
@@ -171,28 +215,45 @@ export default function Whatsapp() {
     };
   }, [fetchStatus]);
 
-  /* ---------- clear the QR the moment we're connected ---------- */
+  /* -------------------------------------------------- keep the QR up to date */
+
+  // While the backend is showing a QR, refresh it every QR_TTL ms. WhatsApp QR
+  // codes are short-lived; leaving a stale one on screen is worse than none.
+  // Self-scheduling so a failed fetch is retried on the next tick.
   useEffect(() => {
-    if (status === "open") setQr(null);
+    if (status !== "qr") return;
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const tick = async () => {
+      await fetchQr(true);
+      if (cancelled) return;
+      timer = setTimeout(tick, QR_TTL);
+    };
+
+    void tick();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [status, fetchQr]);
+
+  // Drop the QR as soon as we are no longer waiting for a scan.
+  useEffect(() => {
+    if (status !== "qr" && status !== "connecting") setQr(null);
   }, [status]);
 
-  /* ---------- keep a fresh QR on screen while waiting for a scan ---------- */
-  useEffect(() => {
-    if (status !== "qr" || qr) return;
-    void fetchQr(true); // silent: don't flash the button
-  }, [status, qr, fetchQr]);
-
-  /* ---------- unmount cleanup ---------- */
-  useEffect(() => () => {
-    if (qrTimerRef.current) clearTimeout(qrTimerRef.current);
-  }, []);
+  /* ------------------------------------------------------------- derived --- */
 
   const isConnected = status === "open";
+  const canConnect = status === "not_started" || status === "closed";
+  const canCancel = status === "connecting" || status === "qr";
   const statusLabel = STATUS_LABELS[status] ?? status;
+  const showQrCard = Boolean(qr) || status === "qr";
 
-  // Generate QR only when not connected; Logout only when connected (or mid-connect).
-  const canGenerateQr = !isConnected && status !== "checking";
-  const canLogout = isConnected || status === "connecting" || status === "qr";
+  /* -------------------------------------------------------------- render --- */
 
   return (
     <section className={style.container}>
@@ -201,43 +262,89 @@ export default function Whatsapp() {
           <p className={style.eyebrow}>Connected service</p>
           <h1 className={style.title}>WhatsApp</h1>
           <p className={style.description}>
-            Configure WhatsApp accounts and the automation that will run
-            through this service.
+            Link a WhatsApp account and manage the automation that runs through
+            this service.
           </p>
         </div>
 
         <div className={style.actions}>
-          <span className={`${style.status} ${isConnected ? style.statusOpen : style.statusClosed}`}>
+          <span
+            className={`${style.status} ${
+              isConnected ? style.statusOpen : style.statusClosed
+            }`}
+          >
             {statusLabel}
           </span>
 
-          <span className={style.numberBadge}>{whatsappNumber ?? "No number linked"}</span>
+          {isConnected && whatsappNumber && (
+            <span className={style.numberBadge}>{whatsappNumber}</span>
+          )}
 
-          <button
-            className={`${style.button} ${style.buttonPrimary}`}
-            onClick={() => void fetchQr()}
-            disabled={loading || !canGenerateQr}
-            title={!canGenerateQr ? "Already connected — log out first to generate a new QR" : undefined}
-          >
-            {loading ? "Loading..." : "Generate QR"}
-          </button>
+          {canConnect && (
+            <button
+              type="button"
+              className={`${style.button} ${style.buttonPrimary}`}
+              onClick={() => void fetchQr(false)}
+              disabled={qrBusy}
+            >
+              {qrBusy ? "Starting…" : "Connect WhatsApp"}
+            </button>
+          )}
 
-          <button
-            className={`${style.button} ${style.buttonDanger}`}
-            onClick={() => void handleLogout()}
-            disabled={loggingOut || !canLogout}
-            title={!canLogout ? "Nothing to log out of" : undefined}
-          >
-            {loggingOut ? "Logging out..." : "Logout"}
-          </button>
+          {status === "qr" && (
+            <button
+              type="button"
+              className={`${style.button} ${style.buttonPrimary}`}
+              onClick={() => void fetchQr(false)}
+              disabled={qrBusy}
+            >
+              {qrBusy ? "Refreshing…" : "Refresh QR"}
+            </button>
+          )}
+
+          {(isConnected || canCancel) && (
+            <button
+              type="button"
+              className={`${style.button} ${style.buttonDanger}`}
+              onClick={() => void handleLogout()}
+              disabled={loggingOut}
+              title={
+                isConnected
+                  ? "Log out of WhatsApp"
+                  : "Cancel this connection attempt"
+              }
+            >
+              {loggingOut
+                ? isConnected
+                  ? "Logging out…"
+                  : "Cancelling…"
+                : isConnected
+                  ? "Logout"
+                  : "Cancel"}
+            </button>
+          )}
         </div>
       </header>
 
-      {errorMessage && <p className={style.errorText}>{errorMessage}</p>}
+      {connectionError && (
+        <p className={style.errorText} role="alert">
+          {connectionError}
+        </p>
+      )}
 
-      {qr && (
+      {actionError && (
+        <p className={style.errorText} role="alert">
+          {actionError}
+        </p>
+      )}
+
+      {showQrCard && (
         <div className={style.qrCard}>
-          <QRCodeSVG value={qr} size={300} level="M" marginSize={4} />
+          {qr ? (
+            <QRCodeSVG value={qr} size={300} level="M" marginSize={4} />
+          ) : (
+            <p className={style.cardMuted}>Loading QR code…</p>
+          )}
         </div>
       )}
 
