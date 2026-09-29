@@ -18,7 +18,7 @@ services:
       retries: 10
 
   redis:
-    image: redis:latest
+    image: redis:7-alpine
     container_name: webvector-redis
     restart: unless-stopped
     ports:
@@ -33,7 +33,7 @@ services:
       retries: 10
 
   kafka:
-    image: apache/kafka:latest
+    image: apache/kafka:3.9.0
     container_name: webvector-kafka
     restart: unless-stopped
     ports:
@@ -58,13 +58,20 @@ services:
       timeout: 10s
       retries: 10
       start_period: 30s
+
   mongodb:
-    image: mongo:latest
+    image: mongo:8.3
     container_name: webvector-mongodb
+    restart: unless-stopped
     ports:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 
 volumes:

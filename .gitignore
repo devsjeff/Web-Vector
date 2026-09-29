@@ -70,3 +70,9 @@ logs/
 # =========================
 *.sqlite
 *.sqlite3
+# =========================
+# Test / build leftovers
+# =========================
+Frontend/web_app/next-env.d.ts
+Backend/.venv/
+*.tsbuildinfo

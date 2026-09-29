@@ -139,6 +139,24 @@ const FIELD_ALIASES: Record<string, ConfigKey> = {
   maintask: "task",
 };
 
+/** Server data -> a complete config (any missing / broken field falls back to the default). */
+function mergeConfig(saved: Partial<Record<ConfigKey, unknown>>): WhatsappBotConfig {
+  const field = (key: FieldKey): FieldState => {
+    const value = saved[key] as Partial<FieldState> | undefined;
+    if (!value || typeof value.mode !== "string") return DEFAULT_CONFIG[key];
+    return { mode: value.mode, customText: typeof value.customText === "string" ? value.customText : "" };
+  };
+
+  return {
+    language: field("language"),
+    roleIdentity: field("roleIdentity"),
+    memoryContext: field("memoryContext"),
+    rulesInstructions: field("rulesInstructions"),
+    responseStyle: field("responseStyle"),
+    task: typeof saved.task === "string" ? saved.task : "",
+  };
+}
+
 function buildPayload(config: WhatsappBotConfig) {
   return {
     language: config.language,
@@ -348,6 +366,25 @@ export default function ConfigCard({
   const abortRef = useRef<AbortController | null>(null);
   const savedTimerRef = useRef<number | null>(null);
 
+  const [loading, setLoading] = useState(true);
+
+  // Load the settings this user saved before, so the card does not start from the defaults every time.
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch(API_URL, { credentials: "include", signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (data?.configured && data.config) setConfig(mergeConfig(data.config));
+      })
+      .catch(() => {}) // no saved settings / server down -> just keep the defaults
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, []);
+
   // Abort any in-flight request on unmount + clear timers.
   useEffect(() => {
     return () => {
@@ -371,7 +408,7 @@ export default function ConfigCard({
   };
 
   const handleUpdate = async () => {
-    if (status === "saving") return;
+    if (status === "saving" || loading) return;
 
     // 1. Client-side validation
     const clientErrors = validate(config);
@@ -439,7 +476,7 @@ export default function ConfigCard({
       } else {
         setError({
           message:
-            "Couldn't reach the server. Check your connection (or that the API is running on localhost:3000) and try again.",
+            "Couldn't reach the server. Check your connection (or that the FastAPI server is running on localhost:8000) and try again.",
         });
       }
 
@@ -591,9 +628,9 @@ export default function ConfigCard({
           type="button"
           className={styles.button}
           onClick={handleUpdate}
-          disabled={status === "saving"}
+          disabled={status === "saving" || loading}
         >
-          {status === "saving" ? "Updating…" : "Update settings"}
+          {status === "saving" ? "Updating…" : loading ? "Loading…" : "Update settings"}
         </button>
       </div>
     </div>

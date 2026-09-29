@@ -1,46 +1,17 @@
-"use client"
+"use client";
 
-import {Backend_urls} from "./configurations"
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
 
-async function checkLogin() {
-const response = await fetch(Backend_urls.Auth ,{
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include"}
-)
+import App_Header from "./components/App_Header";
+import Profile from "./Application/components/Profile/profile";
+import Services from "./Application/components/Services/Services";
 
-    return response.ok
-}
+export default function ApplicationPage() {
 
-export default function Page() {
-
-    const router = useRouter()
-
-    useEffect(() => {
-
-        async function check() {
-
-            const Login = localStorage.getItem("Login")
-
-            if (Login !== "true") {
-                router.replace("/Home")
-                return
-            }
-
-            const isLoggedIn = await checkLogin()
-
-            if (isLoggedIn) {
-                router.replace("/Application")
-            } else {
-                router.replace("/Auth/Login")
-            }
-        }
-
-        check()
-
-    }, [router])
-
-    return null
+  return (
+    <main className="app-page">
+      <App_Header />
+      <Profile />
+      <Services />
+    </main>
+  );
 }

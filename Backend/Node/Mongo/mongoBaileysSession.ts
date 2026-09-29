@@ -144,3 +144,29 @@ export async function hasAuthState(accountId: string) {
 
   return document !== null;
 }
+
+
+
+
+
+// ============================================================================
+// SECTION 6: LIST LINKED ACCOUNTS
+// ============================================================================
+
+// Emails whose WhatsApp was really linked (a QR was scanned) -> we reconnect them when the server starts.
+// A saved login WITHOUT "me" is just an unfinished QR attempt and is skipped.
+export async function listLinkedAccounts(): Promise<string[]> {
+  const documents = await baileysAuthCollection.find({ dataType: "creds", dataKey: "creds" }).toArray();
+  const accounts: string[] = [];
+
+  for (const document of documents) {
+    try {
+      const creds: AuthenticationCreds = JSON.parse(document.storedValue, BufferJSON.reviver);
+      if (creds.me) accounts.push(document.accountId);
+    } catch {
+      // Unreadable row -> ignore it.
+    }
+  }
+
+  return accounts;
+}

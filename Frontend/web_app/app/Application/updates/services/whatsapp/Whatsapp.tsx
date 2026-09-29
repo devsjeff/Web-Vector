@@ -6,6 +6,7 @@ import { QRCodeSVG } from "qrcode.react";
 import ConfigCard from "./Settings/settings";
 
 const API = "http://localhost:3001";
+const CONFIG_API = "http://localhost:8000/App/whatsapp_config";
 
 const POLL_QR = 2_000;
 const POLL_IDLE = 5_000;
@@ -22,6 +23,7 @@ type SessionState =
   | "closed";
 
 type StatusData = { state?: string; whatsappNumber?: string | null };
+type AssistantSetup = "checking" | "defaults" | "ready" | "unavailable";
 
 const STATUS_LABELS: Record<SessionState, string> = {
   checking: "Checking",
@@ -72,6 +74,7 @@ export default function Whatsapp() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [settingscard, setstngcard] = useState(false);
+  const [assistantSetup, setAssistantSetup] = useState<AssistantSetup>("checking");
 
   const forceRefreshRef = useRef<() => void>(() => {});
   const qrRef = useRef<string | null>(null);
@@ -89,10 +92,32 @@ export default function Whatsapp() {
     };
   }, [settingscard]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch(CONFIG_API, { credentials: "include" })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Configuration check failed (${response.status})`);
+        return response.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setAssistantSetup(data?.configured && data.config ? "ready" : "defaults");
+      })
+      .catch(() => {
+        if (!cancelled) setAssistantSetup("unavailable");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const fetchStatus = useCallback(async (): Promise<StatusData> => {
     const res = await fetch(`${API}/whatsapp/status`, {
       credentials: "include",
     });
+    if (res.status === 401) throw new Error("You are logged out. Please sign in again.");
     if (!res.ok) throw new Error(`Status check failed (${res.status})`);
     return res.json();
   }, []);
@@ -179,9 +204,12 @@ export default function Whatsapp() {
         setStatus(lastState);
         setWhatsappNumber(data.whatsappNumber ?? null);
         setConnectionError(null);
+        if (lastState === "open") {
+          setQr(null);
+          setActionError(null);
+        }
       } catch (err) {
         if (cancelled) return;
-        console.error("Status poll failed:", err);
         setConnectionError(
           friendlyError(err, "Lost connection to the server."),
         );
@@ -245,7 +273,8 @@ export default function Whatsapp() {
   const canConnect = status === "not_started" || status === "closed";
   const canCancel = status === "connecting" || status === "qr";
   const statusLabel = STATUS_LABELS[status];
-  const showQrCard = Boolean(qr) || status === "qr";
+  // Once connected there is nothing to scan: never show the QR card (and never keep an old QR around).
+  const showQrCard = !isConnected && (Boolean(qr) || status === "qr");
 
   return (
     <section className={style.container}>
@@ -375,12 +404,37 @@ export default function Whatsapp() {
         <section className={style.heroCard}>
           <div>
             <span className={style.sectionKicker}>WHATSAPP CHANNEL</span>
-            <h2>{isConnected ? "Your assistant is live." : "Ready to connect."}</h2>
+            <h2>
+              {!isConnected
+                ? "Ready to connect."
+                : assistantSetup === "ready"
+                  ? "Your assistant is live."
+                  : assistantSetup === "defaults"
+                    ? "Your assistant is live with default settings."
+                    : assistantSetup === "checking"
+                      ? "Checking assistant setup."
+                      : "WhatsApp is connected."}
+            </h2>
             <p>
-              {isConnected
-                ? "Your WhatsApp session is active. Configure the assistant behavior from settings."
-                : "Connect a WhatsApp account to start using your assistant."}
+              {!isConnected
+                ? "Connect a WhatsApp account to start using your assistant."
+                : assistantSetup === "ready"
+                  ? "Your WhatsApp session is active and ready to reply to messages."
+                  : assistantSetup === "defaults"
+                    ? "Replies use a cautious default behavior until you customize the assistant."
+                    : assistantSetup === "unavailable"
+                      ? "WhatsApp is linked, but assistant setup could not be checked. Open settings to verify it."
+                      : "WhatsApp is linked. Checking whether assistant behavior has been saved."}
             </p>
+            {isConnected && (assistantSetup === "defaults" || assistantSetup === "unavailable") && (
+              <button
+                type="button"
+                className={`${style.button} ${style.buttonPrimary} ${style.setupButton}`}
+                onClick={() => setstngcard(true)}
+              >
+                Customize assistant
+              </button>
+            )}
           </div>
 
           <div className={`${style.bigStatus} ${isConnected ? style.bigStatusLive : ""}`}>
@@ -456,8 +510,9 @@ export default function Whatsapp() {
             aria-label="Automation settings"
           >
             <ConfigCard
-              onUpdate={(config) => {
-                console.log("save config:", config);
+              onUpdate={() => {
+                setAssistantSetup("ready");
+                setstngcard(false);
               }}
               onClose={() => setstngcard(false)}
             />

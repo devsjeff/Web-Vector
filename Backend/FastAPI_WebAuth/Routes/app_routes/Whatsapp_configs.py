@@ -1,50 +1,45 @@
-from fastapi import APIRouter, Request , Response , status , HTTPException
-from FastAPI_WebAuth.Auth.jwt import  Verify_decode_token
+from fastapi import APIRouter, HTTPException, Request
+
+from FastAPI_WebAuth.Auth.jwt import Verify_decode_token
 from FastAPI_WebAuth.Routes.config import limiter
-from FastAPI_WebAuth.db.App import UserWtsAcc_Write
-
 from FastAPI_WebAuth.Routes.Types_pydantic import Configs_type
+from FastAPI_WebAuth.db.App import Save_WhatsappConfig, Read_WhatsappConfig
+from FastAPI_WebAuth.db.web_db import get_user_by_email
 
-APP_ROUTER  =  APIRouter()
+APP_ROUTER = APIRouter()
+
+
+def _email_from_cookie(request: Request) -> str:
+    """The login cookie holds a JWT whose `sub` is the user's email. 401 if missing / invalid."""
+    token = request.cookies.get("access_token")
+    if token is None:
+        raise HTTPException(status_code=401, detail="Not logged in")
+    payload = Verify_decode_token(token)
+    if not payload or not payload.get("sub"):
+        raise HTTPException(status_code=401, detail="Not logged in")
+    return payload["sub"]
+
 
 @APP_ROUTER.post("/App/whatsapp_config")
-@limiter.limit("1/min")
+@limiter.limit("20/min")
 async def update_whatsapp_config(request: Request, configs: Configs_type):
-    access_token = request.cookies.get("access_token")
-    if access_token is None:
-        raise HTTPException(status_code=401, detail="Not logged in")
-    payload = Verify_decode_token(access_token)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Not logged in")
-    if not configs.roleIdentity.mode:
-        raise HTTPException(status_code=422, detail="Role identity is required")
-    if not configs.task.strip():
-        raise HTTPException(status_code=422, detail="Task is required")
+    """Save (create or update) the assistant behaviour: language, role, memory, rules, style, task."""
+    email = _email_from_cookie(request)
 
-    def configured_value(field):
-        return field.customText.strip() if field.mode == "custom" else field.mode
+    user = await get_user_by_email(email)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Account not found")
 
-    fields = (
-        configs.language,
-        configs.roleIdentity,
-        configs.memoryContext,
-        configs.rulesInstructions,
-        configs.responseStyle,
-    )
-    if any(not field.mode.strip() for field in fields):
-        raise HTTPException(status_code=422, detail="All assistant settings are required")
-    if any(field.mode == "custom" and not field.customText.strip() for field in fields):
-        raise HTTPException(status_code=422, detail="Custom settings cannot be empty")
-
-    ok = await UserWtsAcc_Write(
-        email_=payload["sub"],
-        Language_=configured_value(configs.language),
-        Role_identity_=configured_value(configs.roleIdentity),
-        Memory_Context_=configured_value(configs.memoryContext),
-        Rules_instructions_=configured_value(configs.rulesInstructions),
-        Response_Style_=configured_value(configs.responseStyle),
-        Task_=configs.task.strip(),
-    )
+    ok = await Save_WhatsappConfig(user_id=user.id, email=email, config=configs.model_dump())
     if not ok:
-        raise HTTPException(status_code=400, detail="Could not save config")
+        raise HTTPException(status_code=500, detail="Could not save config")
     return {"status": "saved"}
+
+
+@APP_ROUTER.get("/App/whatsapp_config")
+@limiter.limit("60/min")
+async def get_whatsapp_config(request: Request):
+    """Load the saved behaviour so the settings card can show it (configured=False -> show defaults)."""
+    email = _email_from_cookie(request)
+    config = await Read_WhatsappConfig(email)
+    return {"configured": config is not None, "config": config}

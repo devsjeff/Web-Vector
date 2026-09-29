@@ -1,134 +1,119 @@
+from datetime import datetime
+
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import String, select, ForeignKey, Text, text
+from sqlalchemy import String, Text, ForeignKey, DateTime, func, select
+from sqlalchemy.dialects.postgresql import JSONB, insert as pg_insert
 from sqlalchemy.orm import mapped_column, Mapped
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
-from FastAPI_WebAuth.db.web_db import Base, DatabaseSchema
-from FastAPI_WebAuth.Common_configs import DATABASE_URL
+from FastAPI_WebAuth.db.web_db import Base, AsyncSessionLocal
 
-engine = create_async_engine(url=DATABASE_URL, echo=False)
-Async_session = async_sessionmaker(
-    bind=engine, class_=AsyncSession, expire_on_commit=False
-)
+# One DB engine for the whole app (it lives in web_db.py). Before, this file created a second
+# engine + connection pool to the same database for no reason.
+Async_session = AsyncSessionLocal
+
+# The 5 "dropdown + custom text" settings from the dashboard, each stored as {"mode": ..., "customText": ...}.
+FIELD_COLUMNS = ("language", "roleIdentity", "memoryContext", "rulesInstructions", "responseStyle")
 
 
-class UserWtsAccounts(Base):
-    __tablename__ = "usrWtAcc"
+class WhatsappConfig(Base):
+    """
+    One row per user = how that user's WhatsApp assistant should behave.
+    Python's Kafka worker reads this row (by email) for every incoming WhatsApp message
+    and turns it into the system prompt for the LLM.
+    """
+
+    __tablename__ = "whatsapp_configs"
+
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True
-    )
-    wtAcc: Mapped[str | None] = mapped_column(String(20), nullable=True, unique=True)
-    email: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
-    language: Mapped[str] = mapped_column(Text, nullable=False, default="english")
-    role_identity: Mapped[str] = mapped_column(Text)
-    memory_Context: Mapped[str] = mapped_column(Text)
-    rules_instructions: Mapped[str] = mapped_column(Text)
-    response_Style: Mapped[str] = mapped_column(Text)
-    task: Mapped[str] = mapped_column(Text)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    email: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
+    language: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    role_identity: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    memory_context: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    rules_instructions: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    response_style: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    task: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    def to_dict(self) -> dict:
+        """Same shape the dashboard (settings.tsx) sends and expects."""
+        return {
+            "language": self.language,
+            "roleIdentity": self.role_identity,
+            "memoryContext": self.memory_context,
+            "rulesInstructions": self.rules_instructions,
+            "responseStyle": self.response_style,
+            "task": self.task,
+        }
 
 
 class ChatMemories(Base):
+    """Per-chat vector memory (future feature - not used by the reply worker yet)."""
+
     __tablename__ = "memory"
     id: Mapped[int] = mapped_column(primary_key=True)
     chatId: Mapped[str] = mapped_column(String, nullable=False)
-    # custom_mode: Mapped[str] = mapped_column(Text)
-    # custom_instructions: Mapped[str] = mapped_column(Text)         #######Later in updates
-    # custom_memory: Mapped[str] = mapped_column(Text)
     sender_text: Mapped[str] = mapped_column(Text)
     contact_text: Mapped[str] = mapped_column(Text)
     embedding: Mapped[list[float]] = mapped_column(Vector(768), nullable=False)
 
 
-async def init_app_db() -> None:
-    async with engine.begin() as connection:
-        await connection.execute(
-            text('ALTER TABLE "usrWtAcc" ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT \'english\'')
-        )
-        await connection.execute(text('ALTER TABLE "usrWtAcc" ALTER COLUMN "wtAcc" DROP NOT NULL'))
+async def Save_WhatsappConfig(user_id: int, email: str, config: dict) -> bool:
+    """Create or update (upsert) this user's assistant settings. `config` is Configs_type.model_dump()."""
+    values = {
+        "user_id": user_id,
+        "email": email,
+        "language": config["language"],
+        "role_identity": config["roleIdentity"],
+        "memory_context": config["memoryContext"],
+        "rules_instructions": config["rulesInstructions"],
+        "response_style": config["responseStyle"],
+        "task": config["task"],
+    }
+    update_values = {k: v for k, v in values.items() if k not in ("user_id", "email")}
+    update_values["updated_at"] = func.now()
 
+    stmt = pg_insert(WhatsappConfig).values(**values)
+    stmt = stmt.on_conflict_do_update(index_elements=[WhatsappConfig.email], set_=update_values)
 
-async def UserWtsAcc_Write(
-    email_: str,
-    Language_: str,
-    Role_identity_: str,
-    Memory_Context_: str,
-    Rules_instructions_: str,
-    Response_Style_: str,
-    Task_: str,
-):
-    async with Async_session() as Session:
+    async with Async_session() as session:
         try:
-            user_result = await Session.execute(
-                select(DatabaseSchema).where(DatabaseSchema.email == email_)
-            )
-            user = user_result.scalar_one_or_none()
-            if user is None:
-                return False
-
-            account_result = await Session.execute(
-                select(UserWtsAccounts).where(UserWtsAccounts.email == email_)
-            )
-            account = account_result.scalar_one_or_none()
-            if account is None:
-                account = UserWtsAccounts(user_id=user.id, email=email_)
-                Session.add(account)
-
-            account.language = Language_
-            account.role_identity = Role_identity_
-            account.memory_Context = Memory_Context_
-            account.rules_instructions = Rules_instructions_
-            account.response_Style = Response_Style_
-            account.task = Task_
-            await Session.commit()
+            await session.execute(stmt)
+            await session.commit()
             return True
-        except Exception:
-            await Session.rollback()
+        except Exception as e:
+            await session.rollback()
+            print(f"[db] Save_WhatsappConfig failed: {e}")
             return False
 
 
-async def ChatMemo_Write(
-    chatId: str,
-    Embedding: list[float],
-    # Custom_mode: str = "Default",
-    # Custom_instructions: str = "Default",
-    # Custom_memory: str = "Default",
-    Sender_text: str = "Default",
-    Contact_text: str = "Default",
-):
-    async with Async_session() as Session:
-        try:
-            Users_chat_memo = ChatMemories(
-                chatId=chatId,
-                # custom_mode=Custom_mode,
-                # custom_instructions=Custom_instructions,
-                # custom_memory=Custom_memory,
-                sender_text=Sender_text,
-                contact_text=Contact_text,
-                embedding=Embedding,
-            )
-            Session.add(Users_chat_memo)
-            await Session.commit()
-            return True
-        except Exception:
-            await Session.rollback()
-            return False
-
-
-async def Read_UserWtsAcc(email: str):
-    async with Async_session() as Session:
-        Fetch_data = await Session.execute(
-            select(UserWtsAccounts).where(UserWtsAccounts.email == email)
-        )
-        return Fetch_data.scalar_one_or_none()
-
-
-async def REad_ChatMemo_Write(chatid: str):
+async def Read_WhatsappConfig(email: str) -> dict | None:
+    """Returns the saved settings as a plain dict, or None if this user never saved any (or DB error)."""
     try:
-        async with Async_session() as Session:
-            fetch_data = await Session.execute(
-                select(ChatMemories).where(ChatMemories.chatId == chatid)
-            )
-            return fetch_data.scalar_one_or_none()
-    except Exception:
+        async with Async_session() as session:
+            result = await session.execute(select(WhatsappConfig).where(WhatsappConfig.email == email))
+            row = result.scalar_one_or_none()
+            return row.to_dict() if row else None
+    except Exception as e:
+        print(f"[db] Read_WhatsappConfig failed: {e}")
         return None
+
+
+async def ChatMemo_Write(chatId: str, Embedding: list[float], Sender_text: str = "Default", Contact_text: str = "Default") -> bool:
+    async with Async_session() as session:
+        try:
+            session.add(ChatMemories(chatId=chatId, sender_text=Sender_text, contact_text=Contact_text, embedding=Embedding))
+            await session.commit()
+            return True
+        except Exception:
+            await session.rollback()
+            return False
+
+
+async def Read_ChatMemo(chatid: str) -> list[ChatMemories]:
+    try:
+        async with Async_session() as session:
+            result = await session.execute(select(ChatMemories).where(ChatMemories.chatId == chatid))
+            return list(result.scalars().all())
+    except Exception:
+        return []

@@ -14,13 +14,13 @@
 //   Fastify route  ->  BaileysApi.ts  ->  CreateSession.ts  ->  Mongo / Baileys
 //
 // Typical frontend flow:
-//   1. Frontend calls   GET  /whatsapp/qr      -> shows the QR
+//   1. Frontend calls   GET     /whatsapp/qr      -> shows the QR
 //   2. User scans the QR on the phone
-//   3. Frontend polls   GET  /whatsapp/status  -> until state is "open"
-//   4. Later, "disconnect" button calls  DELETE /whatsapp
+//   3. Frontend polls   GET     /whatsapp/status  -> until state is "open"
+//   4. Later, "Logout" button calls  DELETE /whatsapp/logout
 // ============================================================================
 
-import { waitForQrCode, getSession, logoutSession } from "./CreateSession.ts";
+import { getSession, logoutSession, waitForQrCode } from "./CreateSession.ts";
 import type { QrResult, SessionStatus } from "./BaileysTypes.ts";
 
 
@@ -33,13 +33,11 @@ import type { QrResult, SessionStatus } from "./BaileysTypes.ts";
 
 // Starts the session if needed and waits for the QR.
 // Returns { status: "qr", qr } or { status: "connected" } if the user is already linked.
-// If Baileys gives no QR within 30 seconds, this throws an error (Fastify turns it into a 500).
+// If Baileys gives no QR within 30 seconds, this throws an error (Fastify answers 504).
 export async function getQrForUser(email: string): Promise<QrResult> {
   const qr = await waitForQrCode(email);
-  console.log(qr)
 
   if (qr === null) return { status: "connected" };
-  
 
   return { status: "qr", qr };
 }

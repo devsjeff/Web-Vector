@@ -1,40 +1,32 @@
 {
-  "name": "web-vector-main",
+  "name": "web-vector-node",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "node Backend/Node/Fastify/SERVER.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/devsjeff/Web-Vector.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "description": "Web Vector - Node side: Fastify API + Baileys WhatsApp sessions + Kafka bridge",
   "type": "module",
-  "bugs": {
-    "url": "https://github.com/devsjeff/Web-Vector/issues"
+  "scripts": {
+    "dev": "tsx watch Backend/Node/Fastify/server.ts",
+    "start": "tsx Backend/Node/Fastify/server.ts",
+    "typecheck": "tsc --noEmit -p Backend/Node/tsconfig.json",
+    "test": "tsx --test Backend/Node/tests/*.test.ts"
   },
-  "homepage": "https://github.com/devsjeff/Web-Vector#readme",
+  "license": "ISC",
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
     "@fastify/cors": "^11.3.0",
     "@fastify/helmet": "^13.1.1",
     "@fastify/rate-limit": "^11.2.0",
-    "@fastify/sensible": "^6.0.5",
+    "@fastify/sensible": "^6.0.6",
     "@whiskeysockets/baileys": "^7.0.0-rc14",
     "dotenv": "^18.0.4",
     "fastify": "^5.12.5",
     "jose": "^6.2.12",
     "kafkajs": "^2.2.4",
     "mongodb": "^7.7.0",
-    "qrcode.react": "^4.2.0"
+    "pino": "^10.3.1",
+    "redis": "^6.2.1"
   },
   "devDependencies": {
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }

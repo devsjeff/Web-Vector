@@ -1,4 +1,6 @@
-from pydantic import BaseModel, EmailStr, Field
+from typing import Annotated
+
+from pydantic import BaseModel, EmailStr, Field, StringConstraints, model_validator
 
 
 class Token(BaseModel):
@@ -22,11 +24,22 @@ class SignupType(BaseModel):
     last_name: str | None = Field(default=None, max_length=20)
 
 
-from pydantic import BaseModel
+# ------------------------------------------------------------------ WhatsApp assistant settings
+# The names below (roleIdentity, memoryContext, ...) are exactly what settings.tsx sends.
+
 
 class FieldState(BaseModel):
-    mode: str
-    customText: str = ""
+    """One dropdown (mode) + optional free text (used when mode == "custom")."""
+
+    mode: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
+    customText: Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)] = ""
+
+    @model_validator(mode="after")
+    def custom_needs_text(self):
+        if self.mode == "custom" and not self.customText:
+            raise ValueError("customText is required when mode is 'custom'")
+        return self
+
 
 class Configs_type(BaseModel):
     language: FieldState
@@ -34,4 +47,4 @@ class Configs_type(BaseModel):
     memoryContext: FieldState
     rulesInstructions: FieldState
     responseStyle: FieldState
-    task: str = ""
+    task: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=3000)]

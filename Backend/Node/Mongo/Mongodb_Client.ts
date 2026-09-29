@@ -8,6 +8,7 @@
 // ============================================================================
 
 import { MongoClient } from "mongodb";
+import { env } from "../CommonENV.ts";
 import type { BaileysAuthDocument } from "./MongoTypes.ts";
 
 
@@ -19,10 +20,10 @@ import type { BaileysAuthDocument } from "./MongoTypes.ts";
 // ============================================================================
 
 // Where MongoDB is running. Falls back to your local Docker Mongo if MONGO_URL is not set.
-const MONGO_URL = process.env.MONGO_URL ?? "mongodb://localhost:27017";
+const MONGO_URL = env.MONGO_URL;
 
 // Database name.
-const MONGO_DB = process.env.MONGO_DB ?? "webvector";
+const MONGO_DB = env.MONGO_DB;
 
 
 
@@ -61,3 +62,15 @@ await baileysAuthCollection.createIndex({ accountId: 1, dataType: 1, dataKey: 1 
 
 // Makes "find / delete everything of one account" fast.
 await baileysAuthCollection.createIndex({ accountId: 1 });
+
+
+
+
+
+// ============================================================================
+// SECTION 5: CLOSE (used when the server shuts down)
+// ============================================================================
+
+export async function closeMongo() {
+  await mongoClient.close();
+}

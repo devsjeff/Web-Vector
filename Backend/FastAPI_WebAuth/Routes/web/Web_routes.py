@@ -79,7 +79,7 @@ async def signup_otp(request: Request, email: Email):
 
 
 @WEBrouter.post("/Auth/VerifySignOtpCreateAcc")
-@limiter.limit("1/min")
+@limiter.limit("5/min")
 async def Verify_Del_signup_otp(
     request: Request, response: Response, body: SignupType
 ):
@@ -137,7 +137,7 @@ async def Verify_Del_signup_otp(
 
 
 @WEBrouter.post("/Auth/Login")
-@limiter.limit("2/min")
+@limiter.limit("10/min")
 async def LoginRoutess(request: Request, response: Response, body: LoginType):
     matched = await Login_email_pass_Get(email=body.email, password=body.password)
 
@@ -166,7 +166,7 @@ async def LoginRoutess(request: Request, response: Response, body: LoginType):
 
 
 @WEBrouter.post("/Auth/Forgot_password_Otp")
-@limiter.limit("1/min")
+@limiter.limit("3/min")
 async def Forgot_pass_send_otp(request: Request, response: Response, body: Email):
     exist = await check_user_exists(body.email)
 
@@ -205,7 +205,7 @@ async def Forgot_pass_send_otp(request: Request, response: Response, body: Email
 
 
 @WEBrouter.post("/Auth/Forget_pass_Reset")
-@limiter.limit("1/min")
+@limiter.limit("5/min")
 async def forget_pass_reset(
     request: Request, response: Response, body: SignupType
 ):

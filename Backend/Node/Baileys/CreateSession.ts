@@ -7,21 +7,28 @@
 //   SECTION 1  Settings            numbers you can change
 //   SECTION 2  Memory store        Maps that hold live sessions (RAM only, not Mongo)
 //   SECTION 3  Small helpers       phone number, message text, message converter
-//   SECTION 4  Message buffer      save each incoming message in a variable, per chat
-//   SECTION 5  Push 30 messages    when a chat reaches 30 messages, push them out (Kafka goes here)
+//   SECTION 4  Incoming messages   WhatsApp message -> ChatPipeline (history, debounce) -> Kafka
+//   SECTION 5  Send a reply        Python's answer (from Kafka) -> WhatsApp
 //   SECTION 6  Socket events       what happens on: creds update / QR / open / close / new message
-//   SECTION 7  Create a session    build the socket + reconnect when the connection drops
-//   SECTION 8  Public functions    used by BaileysApi.ts (the file Fastify calls)
+//   SECTION 7  Create a session    build the socket + reconnect (with growing delay) when the connection drops
+//   SECTION 8  Public functions    used by BaileysApi.ts and server.ts
 //
-// Message flow:
-//   WhatsApp -> SECTION 6 -> SECTION 3 (convert) -> SECTION 4 (save) -> SECTION 5 (push) -> Kafka
+// The whole message flow:
+//   WhatsApp -> SECTION 6 -> SECTION 3 (convert) -> SECTION 4 (ChatPipeline) -> Kafka -> Python + AI
+//   Python + AI -> Kafka -> SECTION 5 (sendReply) -> WhatsApp
 // ============================================================================
 
-import makeWASocket, { DisconnectReason, type AuthenticationState, type WAMessage, type WASocket } from "@whiskeysockets/baileys";
+import makeWASocket, { Browsers, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, normalizeMessageContent, type AuthenticationState, type WAMessage, type WASocket } from "@whiskeysockets/baileys";
 import { EventEmitter } from "node:events";
-import { loadAuthState, saveCredentials, deleteAuthState } from "../Mongo/mongoBaileysSession.ts";
-import { publishIncomingMessage } from "../Kafka/baileys_kafka.ts";
+import { setTimeout as sleep } from "node:timers/promises";
+import { pino } from "pino";
+import { env } from "../CommonENV.ts";
+import { HttpError } from "../HttpError.ts";
+import { publishIncoming } from "../Kafka/baileys_kafka.ts";
+import type { OutgoingEvent } from "../Kafka/KafkaTypes.ts";
+import { deleteAuthState, listLinkedAccounts, loadAuthState, saveCredentials } from "../Mongo/mongoBaileysSession.ts";
 import type { ChatMessage, WhatsAppSession } from "./BaileysTypes.ts";
+import { addToHistory, clearChatTimers, defaultOptions, getChat, onContactMessage } from "./ChatPipeline.ts";
 
 
 
@@ -34,8 +41,13 @@ import type { ChatMessage, WhatsAppSession } from "./BaileysTypes.ts";
 // How long we wait for a QR code before giving up.
 const QR_TIMEOUT_MS = 30_000;
 
-// After a dropped connection, wait this long before connecting again.
-const RECONNECT_DELAY_MS = 3_000;
+// Reconnect delay grows: 3s, 6s, 12s ... up to 60s. After MAX_RECONNECT_ATTEMPTS failures in a row we give up.
+const RECONNECT_BASE_DELAY_MS = 3_000;
+const RECONNECT_MAX_DELAY_MS = 60_000;
+const MAX_RECONNECT_ATTEMPTS = 8;
+
+// Baileys is very chatty. "silent" = no Baileys logs at all (use "warn" or "debug" while debugging).
+const baileysLogger = pino({ level: "silent" });
 
 
 
@@ -77,7 +89,8 @@ function logError(label: string) {
 
 // Pulls the text out of a Baileys message. Returns "" if the message has no text.
 function getText(message: WAMessage) {
-  const content = message.message;
+  // normalizeMessageContent unwraps "disappearing message" / "view once" wrappers.
+  const content = normalizeMessageContent(message.message);
 
   if (!content) return "";
   if (content.conversation) return content.conversation;
@@ -91,25 +104,28 @@ function getText(message: WAMessage) {
 
 // The small result we get after converting one Baileys message.
 interface ConvertedMessage {
+  jid: string; // where replies go
   chatWithNumber: string;
+  contactName: string | null;
   message: ChatMessage;
 }
 
 
 // Converts a big Baileys message into our small ChatMessage. Returns null if we want to skip it.
-function convertMessage(baileysMessage: WAMessage): ConvertedMessage | null {
+export function convertMessage(baileysMessage: WAMessage): ConvertedMessage | null {
   const messageId = baileysMessage.key.id;
 
   // Newer Baileys can give an "@lid" chat id. The real phone-number id is then in remoteJidAlt.
+  // If there is no alternative, we still keep the "@lid" chat (replying to it works too).
   const remoteJid = baileysMessage.key.remoteJid;
   const alternativeJid = (baileysMessage.key as { remoteJidAlt?: string }).remoteJidAlt;
-  const jid = remoteJid?.endsWith("@lid") ? alternativeJid : remoteJid;
+  const jid = remoteJid?.endsWith("@lid") && alternativeJid ? alternativeJid : remoteJid;
 
   // No chat id or no message id -> useless for us, skip.
   if (!jid || !messageId) return null;
 
-  // For now we only handle direct person-to-person chats (no groups, no status updates).
-  if (!jid.endsWith("@s.whatsapp.net")) return null;
+  // For now we only handle direct person-to-person chats (no groups, no status updates, no broadcasts).
+  if (!jid.endsWith("@s.whatsapp.net") && !jid.endsWith("@lid")) return null;
 
   // Photos / stickers / voice notes without text -> skip.
   const text = getText(baileysMessage);
@@ -120,9 +136,10 @@ function convertMessage(baileysMessage: WAMessage): ConvertedMessage | null {
 
   // messageTimestamp can be a number or a "Long" object. Number() turns both into a plain number.
   const timestamp = Number(baileysMessage.messageTimestamp ?? 0);
-  const message: ChatMessage = { messageId, fromMe: Boolean(baileysMessage.key.fromMe), text, timestamp };
+  const fromMe = Boolean(baileysMessage.key.fromMe);
+  const contactName = fromMe ? null : baileysMessage.pushName || null;
 
-  return { chatWithNumber, message };
+  return { jid, chatWithNumber, contactName, message: { messageId, fromMe, text, timestamp } };
 }
 
 
@@ -130,7 +147,75 @@ function convertMessage(baileysMessage: WAMessage): ConvertedMessage | null {
 
 
 // ============================================================================
-// SECTION 4: SOCKET EVENTS
+// SECTION 4: INCOMING MESSAGES
+// ============================================================================
+
+export async function handleIncomingMessages(session: WhatsAppSession, messages: WAMessage[], type: string) {
+  // "notify" = brand new messages, "append" = messages added to the chat list (also our own sent ones).
+  // Anything else (old history sync) is skipped.
+  if (type !== "notify" && type !== "append") return;
+
+  for (const baileysMessage of messages) {
+    const converted = convertMessage(baileysMessage);
+    if (!converted) continue;
+
+    const { jid, chatWithNumber, contactName, message } = converted;
+    const chat = getChat(session, jid, chatWithNumber, contactName);
+
+    // Our own messages (typed on the phone, or sent by the bot) only go into the history.
+    if (message.fromMe) {
+      addToHistory(chat, message);
+      continue;
+    }
+
+    // Old messages (offline backlog after a reconnect) and "append" messages: remember them, but never answer them.
+    const ageSeconds = Date.now() / 1000 - message.timestamp;
+    if (type !== "notify" || ageSeconds > env.MESSAGE_MAX_AGE_SECONDS) {
+      addToHistory(chat, message);
+      continue;
+    }
+
+    // "Message yourself" chat: never answer that one (it would loop).
+    if (chatWithNumber === session.whatsappNumber) continue;
+
+    const result = onContactMessage(session, chat, message, publishIncoming);
+    if (result === "rate_limited") console.warn(`[${session.email}] ${chatWithNumber} is over the message limit, ignoring`);
+  }
+}
+
+
+
+
+
+// ============================================================================
+// SECTION 5: SEND A REPLY (Python answered -> WhatsApp)
+// ============================================================================
+
+const ALLOWED_JID = /^\d+(:\d+)?@(s\.whatsapp\.net|lid)$/;
+
+export async function sendReply(event: OutgoingEvent) {
+  const session = sessions.get(event.email);
+
+  if (!session || session.state !== "open") throw new Error(`no open WhatsApp session for ${event.email}`);
+
+  // Only ever answer direct chats, whatever arrives on the topic.
+  if (!ALLOWED_JID.test(event.chatJid)) throw new Error(`refusing to send to ${event.chatJid}`);
+
+  const sent = await session.socket.sendMessage(event.chatJid, { text: event.reply });
+
+  // Remember our own reply in the history so the next question has the full conversation.
+  const chat = session.chats.get(event.chatJid);
+  if (chat && sent?.key.id) addToHistory(chat, { messageId: sent.key.id, fromMe: true, text: event.reply, timestamp: Math.floor(Date.now() / 1000) });
+
+  console.log(`[${event.email}] replied to ${event.chatWithNumber}`);
+}
+
+
+
+
+
+// ============================================================================
+// SECTION 6: SOCKET EVENTS
 // Baileys tells us things ("creds changed", "here is a QR", "connection closed", "new message").
 // Each thing has its own small function below.
 // ============================================================================
@@ -146,6 +231,7 @@ async function handleCredsUpdate(session: WhatsAppSession, authState: Authentica
     await saveCredentials(session.email, authState.creds);
   } catch (error) {
     session.events.emit("session-error", error);
+    console.error(`[${session.email}] could not save creds:`, error);
   }
 }
 
@@ -162,6 +248,7 @@ function handleQr(session: WhatsAppSession, qr: string) {
 function handleOpen(session: WhatsAppSession, socket: WASocket) {
   session.state = "open";
   session.qr = null;
+  session.reconnectAttempts = 0;
   session.whatsappNumber = getPhoneNumber(socket.user?.id);
   session.events.emit("open");
 
@@ -180,25 +267,33 @@ function handleClose(session: WhatsAppSession, socket: WASocket, authState: Auth
   const wasLoggedOut = statusCode === DisconnectReason.loggedOut; // user removed the device on the phone
   const wasReplaced = statusCode === DisconnectReason.connectionReplaced; // same login opened somewhere else
   const qrNotScanned = session.state === "qr" && statusCode !== DisconnectReason.restartRequired; // QR expired, nobody scanned
+  const isRestart = statusCode === DisconnectReason.restartRequired;
 
   console.log(`[${session.email}] connection closed (code ${statusCode})`);
 
+  // A dropped connection is retried a limited number of times (the QR-scan restart does not count).
+  if (!isRestart) session.reconnectAttempts += 1;
+  const gaveUp = session.reconnectAttempts > MAX_RECONNECT_ATTEMPTS;
+
   // CASE 1: this session is finished for good -> clean up.
-  if (wasLoggedOut || wasReplaced || qrNotScanned) {
+  if (wasLoggedOut || wasReplaced || qrNotScanned || gaveUp) {
     session.state = "closed";
     session.events.emit("close");
     sessions.delete(session.email);
+    clearChatTimers(session);
 
     // A real logout means the saved login is useless now -> delete it from Mongo.
+    // (If we only gave up reconnecting, the login stays saved, the next "Connect" or restart tries again.)
     if (wasLoggedOut) deleteAuthState(session.email).catch(logError("Could not delete auth state:"));
 
+    if (gaveUp) console.error(`[${session.email}] gave up reconnecting after ${MAX_RECONNECT_ATTEMPTS} tries`);
     return;
   }
 
   // CASE 2: the connection just dropped -> connect again with the SAME session object.
   // Important: right after the QR scan WhatsApp ALWAYS closes once with "restartRequired".
   // Without reconnecting here, the session would never become "open".
-  const delay = statusCode === DisconnectReason.restartRequired ? 0 : RECONNECT_DELAY_MS;
+  const delay = isRestart ? 0 : Math.min(RECONNECT_BASE_DELAY_MS * 2 ** (session.reconnectAttempts - 1), RECONNECT_MAX_DELAY_MS);
 
   session.state = "connecting";
   session.qr = null;
@@ -207,29 +302,7 @@ function handleClose(session: WhatsAppSession, socket: WASocket, authState: Auth
 }
 
 
-// 6E. A new WhatsApp message arrived.
-async function handleIncomingMessages(session: WhatsAppSession, messages: WAMessage[], type: string) {
-  // "notify" = brand new messages. Other types are old history -> skip.
-  if (type !== "notify") return;
-
-  for (const baileysMessage of messages) {
-    // Turn the big Baileys message into our small one (or skip it).
-    const converted = convertMessage(baileysMessage);
-    if (!converted) continue;
-    if (converted.message.fromMe) continue;
-
-    await publishIncomingMessage({
-      email: session.email,
-      whatsappNumber: session.whatsappNumber,
-      chatWithNumber: converted.chatWithNumber,
-      messageId: converted.message.messageId,
-      message: converted.message.text,
-    });
-  }
-}
-
-
-// 6F. Connect all the events above to one socket.
+// 6E. Connect all the events above to one socket.
 function attachListeners(session: WhatsAppSession, socket: WASocket, authState: AuthenticationState) {
   socket.ev.on("creds.update", () => {
     void handleCredsUpdate(session, authState); // has its own try/catch inside
@@ -251,8 +324,45 @@ function attachListeners(session: WhatsAppSession, socket: WASocket, authState: 
 
 
 // ============================================================================
-// SECTION 5: CREATE A SESSION + RECONNECT
+// SECTION 7: CREATE A SESSION + RECONNECT
 // ============================================================================
+
+// The WhatsApp Web version changes now and then. Using an old one gets the connection refused,
+// so we ask Baileys for the newest (cached for 6 hours). If that fails we use the one built into Baileys.
+let cachedVersion: { version: [number, number, number]; fetchedAt: number } | null = null;
+
+async function getWhatsAppVersion() {
+  if (cachedVersion && Date.now() - cachedVersion.fetchedAt < 6 * 60 * 60 * 1000) return cachedVersion.version;
+
+  try {
+    const latest = await Promise.race([fetchLatestBaileysVersion(), sleep(5_000).then(() => null)]);
+
+    if (latest && !latest.error) {
+      cachedVersion = { version: latest.version, fetchedAt: Date.now() };
+      return latest.version;
+    }
+  } catch {
+    // ignore, fall through
+  }
+
+  return undefined; // undefined = Baileys uses its built-in version
+}
+
+
+// Builds one Baileys socket from a saved login.
+async function createSocket(authState: AuthenticationState): Promise<WASocket> {
+  const version = await getWhatsAppVersion();
+
+  return makeWASocket({
+    auth: { creds: authState.creds, keys: makeCacheableSignalKeyStore(authState.keys, baileysLogger) }, // cache = far fewer Mongo reads
+    logger: baileysLogger,
+    version,
+    browser: Browsers.macOS("Web Vector"),
+    markOnlineOnConnect: false, // do not steal the "online" status from the phone
+    syncFullHistory: false, // we do not need the old chats
+  });
+}
+
 
 // 7A. Build a brand new session for one user.
 async function createNewSession(email: string): Promise<WhatsAppSession> {
@@ -260,17 +370,10 @@ async function createNewSession(email: string): Promise<WhatsAppSession> {
   const authState = await loadAuthState(email);
 
   // Open the WhatsApp connection with that login.
-  const socket = makeWASocket({ auth: authState });
+  const socket = await createSocket(authState);
 
   // The session object: everything we know about this user's WhatsApp.
-  const session: WhatsAppSession = {
-    email,
-    socket,
-    state: "connecting",
-    qr: null,
-    whatsappNumber: null,
-    events: new EventEmitter(),
-  };
+  const session: WhatsAppSession = { email, socket, state: "connecting", qr: null, whatsappNumber: null, chats: new Map(), events: new EventEmitter(), reconnectAttempts: 0 };
 
   // Remember it in memory, then start listening to the socket (SECTION 6).
   sessions.set(email, session);
@@ -281,30 +384,39 @@ async function createNewSession(email: string): Promise<WhatsAppSession> {
 
 
 // 7B. Connect again after a drop. Same session object, only the socket is new,
-// so Fastify and the message buffers keep working.
-function reconnectSession(session: WhatsAppSession, authState: AuthenticationState) {
+// so Fastify and the chat histories keep working.
+async function reconnectSession(session: WhatsAppSession, authState: AuthenticationState) {
   // The session was removed while we waited (for example the user logged out) -> stop.
   if (sessions.get(session.email) !== session) return;
 
   // We reuse the authState we already have in memory. It is always the newest one.
   // (Reading from Mongo here could give older data if the last save is still running.)
-  const socket = makeWASocket({ auth: authState });
+  const socket = await createSocket(authState);
+
+  // Removed while we were creating the socket -> throw the new socket away.
+  if (sessions.get(session.email) !== session) return socket.end(undefined);
 
   session.socket = socket;
   attachListeners(session, socket, authState);
 }
 
 
-// 7C. Same as 7B, but after a small wait. If it fails, it tries again.
+// 7C. Same as 7B, but after a small wait. If it fails, it tries again (with a limit).
 function scheduleReconnect(session: WhatsAppSession, authState: AuthenticationState, delayMs: number) {
   setTimeout(() => {
-    try {
-      reconnectSession(session, authState);
-    } catch (error) {
-      // Production tip: add a maximum retry count and a growing delay here.
-      console.error("Reconnect failed, trying again:", error);
-      scheduleReconnect(session, authState, RECONNECT_DELAY_MS);
-    }
+    reconnectSession(session, authState).catch((error) => {
+      console.error(`[${session.email}] reconnect failed:`, error);
+
+      session.reconnectAttempts += 1;
+      if (session.reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+        session.state = "closed";
+        sessions.delete(session.email);
+        clearChatTimers(session);
+        return;
+      }
+
+      scheduleReconnect(session, authState, RECONNECT_BASE_DELAY_MS);
+    });
   }, delayMs);
 }
 
@@ -313,7 +425,7 @@ function scheduleReconnect(session: WhatsAppSession, authState: AuthenticationSt
 
 
 // ============================================================================
-// SECTION 6: PUBLIC FUNCTIONS (BaileysApi.ts uses these, Fastify never touches them directly)
+// SECTION 8: PUBLIC FUNCTIONS
 // ============================================================================
 
 // 8A. Start the session for this email (or reuse the one that already exists).
@@ -325,6 +437,9 @@ export async function startSession(email: string): Promise<WhatsAppSession> {
   // Another request is creating it right now -> wait for that one (do not create a second socket).
   const pendingStart = pendingStarts.get(email);
   if (pendingStart) return pendingStart;
+
+  // Limit of live sockets (each one uses memory and a WhatsApp connection).
+  if (sessions.size + pendingStarts.size >= env.MAX_SESSIONS) throw new HttpError(503, "The server is full right now. Please try again later.");
 
   // Otherwise create it. We remember the promise until it finishes.
   const newStart = createNewSession(email).finally(() => pendingStarts.delete(email));
@@ -349,6 +464,7 @@ export async function waitForQrCode(email: string, timeoutMs = QR_TIMEOUT_MS): P
       clearTimeout(timer);
       session.events.off("qr", onQr);
       session.events.off("open", onOpen);
+      session.events.off("close", onClose);
     };
 
     const onQr = (qr: string) => {
@@ -361,13 +477,19 @@ export async function waitForQrCode(email: string, timeoutMs = QR_TIMEOUT_MS): P
       resolve(null);
     };
 
+    const onClose = () => {
+      stopWaiting();
+      reject(new HttpError(502, "Could not connect to WhatsApp. Please try again."));
+    };
+
     const timer = setTimeout(() => {
       stopWaiting();
-      reject(new Error("Timed out waiting for QR"));
+      reject(new HttpError(504, "WhatsApp did not send a QR code in time. Please try again."));
     }, timeoutMs);
 
     session.events.on("qr", onQr);
     session.events.on("open", onOpen);
+    session.events.on("close", onClose);
   });
 }
 
@@ -378,30 +500,67 @@ export function getSession(email: string) {
 }
 
 
-export async function sendWhatsAppMessage(email: string, number: string, text: string) {
-  const session = sessions.get(email);
-  if (!session || session.state !== "open") {
-    throw new Error(`WhatsApp session is not connected for ${email}`);
-  }
-
-  await session.socket.sendMessage(`${number}@s.whatsapp.net`, { text });
-}
-
-
 // 8D. Logout: close WhatsApp, forget the session, delete the saved login from Mongo.
 export async function logoutSession(email: string) {
+  // A session that is still being created: wait for it, so we do not leave a socket behind.
+  await pendingStarts.get(email)?.catch(() => {});
+
   const session = sessions.get(email);
 
   if (session) {
     // Remove from memory FIRST, so the "close" event that logout causes is ignored (see handleClose).
     sessions.delete(email);
+    clearChatTimers(session);
 
     try {
-      await session.socket.logout();
+      // logout() tells WhatsApp to remove this linked device. It only works while connected.
+      if (session.state === "open") await session.socket.logout();
+      else session.socket.end(undefined);
     } catch (error) {
       console.error("Baileys logout error:", error);
     }
+
+    session.state = "closed";
+    session.events.emit("close");
   }
 
   await deleteAuthState(email);
+}
+
+
+// 8E. When the server starts: reconnect every user who linked WhatsApp before (no QR needed).
+export async function restoreSessions() {
+  const emails = await listLinkedAccounts();
+
+  for (const email of emails.slice(0, env.MAX_SESSIONS)) {
+    try {
+      await startSession(email);
+      console.log(`[${email}] restoring saved WhatsApp session`);
+    } catch (error) {
+      console.error(`[${email}] could not restore session:`, error);
+    }
+
+    await sleep(500); // a small gap so we do not open all sockets in the same second
+  }
+}
+
+
+// 8F. When the server stops: close the sockets but KEEP the saved logins (users stay linked).
+export function closeAllSessions() {
+  for (const session of sessions.values()) {
+    clearChatTimers(session);
+    try {
+      session.socket.end(undefined);
+    } catch {
+      // ignore
+    }
+  }
+
+  sessions.clear();
+}
+
+
+// Test helper: put a fake session in the map (used by tests/e2e_bridge.e2e.ts, never by the app).
+export function __setSessionForTests(session: WhatsAppSession) {
+  sessions.set(session.email, session);
 }
