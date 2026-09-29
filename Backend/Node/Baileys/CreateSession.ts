@@ -201,6 +201,8 @@ export async function sendReply(event: OutgoingEvent) {
   // Only ever answer direct chats, whatever arrives on the topic.
   if (!ALLOWED_JID.test(event.chatJid)) throw new Error(`refusing to send to ${event.chatJid}`);
 
+  if (!event.reply || !event.reply.trim()) throw new Error("empty reply, not sending");
+
   const sent = await session.socket.sendMessage(event.chatJid, { text: event.reply });
 
   // Remember our own reply in the history so the next question has the full conversation.
@@ -360,6 +362,8 @@ async function createSocket(authState: AuthenticationState): Promise<WASocket> {
     browser: Browsers.macOS("Web Vector"),
     markOnlineOnConnect: false, // do not steal the "online" status from the phone
     syncFullHistory: false, // we do not need the old chats
+    // Required by newer Baileys: without getMessage, retries/receipts can fail with 4xx disconnects.
+    getMessage: async () => undefined,
   });
 }
 

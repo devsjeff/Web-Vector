@@ -1,17 +1,16 @@
 """
 whatsapp_kafka.py - the Python worker: Kafka consumer + producer + LLM.
 
-Run it from the Backend/ folder (in its own terminal, next to uvicorn and the Node server):
+Run from the Backend/ folder:
 
     python -m FastAPI_WebAuth.Kafka.whatsapp_kafka
 
-Flow for every WhatsApp message:
-
-  1. read IncomingEvent from topic  whatsapp.incoming     (Node put it there)
-  2. load this user's saved settings from Postgres          (role, style, task, rules, language, memory)
-  3. build system prompt + chat turns, ask the LLM
-  4. write OutgoingEvent to topic   whatsapp.outgoing       (Node reads it and sends it on WhatsApp)
-  5. commit the Kafka offset (only AFTER step 4, so a crash never silently loses a message)
+Flow:
+  1. read IncomingEvent from topic  whatsapp.incoming
+  2. load user settings from Postgres
+  3. build prompt, ask the LLM
+  4. write OutgoingEvent to topic   whatsapp.outgoing
+  5. commit the Kafka offset (only AFTER step 4)
 """
 import asyncio
 import json
@@ -21,6 +20,7 @@ import uuid
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
+from pydantic import ValidationError
 
 from FastAPI_WebAuth.AI_AI_AI_AI_AI_AI.prompt_builder import DEFAULT_ASSISTANT_CONFIG, build_messages, build_system_prompt
 from FastAPI_WebAuth.AI_AI_AI_AI_AI_AI.WhatsappAi import generate_reply
@@ -39,16 +39,14 @@ RETRY_BASE_SECONDS = 2
 RETRY_MAX_SECONDS = 30
 
 
-# ====================================================================== 1. THE BRAIN (no Kafka in here)
 async def process_event(event: IncomingEvent) -> OutgoingEvent | None:
-    """One incoming WhatsApp message -> the reply to send (or None = do not reply)."""
     age_seconds = time.time() - event.created_at / 1000
     if age_seconds > EVENT_MAX_AGE_SECONDS:
         print(f"[worker] skip {event.event_id}: too old ({int(age_seconds)}s)")
         return None
 
-    if event.chat_with_number == event.whatsapp_number:
-        return None  # "message yourself" chat
+    if event.chat_with_number and event.whatsapp_number and event.chat_with_number == event.whatsapp_number:
+        return None
 
     config = await Read_WhatsappConfig(event.email)
     if config is None:
@@ -58,7 +56,12 @@ async def process_event(event: IncomingEvent) -> OutgoingEvent | None:
         config = DEFAULT_ASSISTANT_CONFIG
         print(f"[worker] {event.email} has no saved settings; using safe default assistant behavior")
 
-    system_prompt = build_system_prompt(config, contact_name=event.contact_name, contact_number=event.chat_with_number, owner_number=event.whatsapp_number)
+    system_prompt = build_system_prompt(
+        config,
+        contact_name=event.contact_name,
+        contact_number=event.chat_with_number,
+        owner_number=event.whatsapp_number,
+    )
     history = [{"text": m.text, "from_me": m.from_me} for m in event.history]
     current = {"text": event.message.text, "from_me": False}
     messages = build_messages(system_prompt, history, current)
@@ -79,9 +82,7 @@ async def process_event(event: IncomingEvent) -> OutgoingEvent | None:
     )
 
 
-# ====================================================================== 2. KAFKA PLUMBING
 async def ensure_topics() -> None:
-    """Create both topics if they do not exist yet (safe to run every time)."""
     admin = AIOKafkaAdminClient(bootstrap_servers=KAFKA_BROKERS)
     await admin.start()
     try:
@@ -95,7 +96,6 @@ async def ensure_topics() -> None:
 
 
 async def _retry_start(label: str, start, attempts: int = 30) -> None:
-    """Kafka in Docker needs a few seconds after `docker compose up`. Keep trying instead of crashing."""
     for attempt in range(1, attempts + 1):
         try:
             await start()
@@ -107,20 +107,39 @@ async def _retry_start(label: str, start, attempts: int = 30) -> None:
 
 
 async def _handle_one(msg, producer: AIOKafkaProducer) -> None:
+    raw = msg.value
+    if raw is None:
+        print(f"[worker] empty message at offset {msg.offset}, skipped")
+        return
+
     try:
-        event = IncomingEvent.model_validate(json.loads(msg.value))
+        payload = json.loads(raw)
+    except Exception as e:
+        print(f"[worker] non-JSON message at offset {msg.offset}, skipped: {e}")
+        return
+
+    try:
+        event = IncomingEvent.model_validate(payload)
+    except ValidationError as e:
+        details = "; ".join(
+            f"{'.'.join(str(x) for x in err.get('loc', ()))}: {err.get('msg')}" for err in e.errors()[:5]
+        )
+        print(f"[worker] pydantic validation failed at offset {msg.offset}: {details}")
+        return
     except Exception as e:
         print(f"[worker] bad message at offset {msg.offset}, skipped: {e}")
         return
 
-    print(f"[worker] in : {event.email} <- {event.chat_with_number}: {event.message.text[:80]!r}")
+    text_preview = (event.message.text or "")[:80]
+    print(f"[worker] in : {event.email} <- {event.chat_with_number}: {text_preview!r}")
     outgoing = await process_event(event)
 
     if outgoing is None:
         return
 
-    payload = json.dumps(outgoing.model_dump(by_alias=True)).encode()
-    await producer.send_and_wait(KAFKA_TOPIC_OUTGOING, value=payload, key=msg.key)
+    body = outgoing.model_dump(by_alias=True, mode="json")
+    encoded = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    await producer.send_and_wait(KAFKA_TOPIC_OUTGOING, value=encoded, key=msg.key)
     print(f"[worker] out: {outgoing.email} -> {outgoing.chat_with_number}: {outgoing.reply[:80]!r}")
 
 
@@ -131,8 +150,9 @@ async def run_worker() -> None:
         KAFKA_TOPIC_INCOMING,
         bootstrap_servers=KAFKA_BROKERS,
         group_id=KAFKA_WORKER_GROUP_ID,
-        enable_auto_commit=False,  # we commit ourselves, after the reply is written
-        auto_offset_reset="earliest",  # first start: also read messages sent while the worker was down
+        enable_auto_commit=False,
+        auto_offset_reset="earliest",
+        value_deserializer=None,
     )
     producer = AIOKafkaProducer(bootstrap_servers=KAFKA_BROKERS, acks="all")
 
@@ -145,7 +165,7 @@ async def run_worker() -> None:
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, stop.set)
     except NotImplementedError:
-        pass  # Windows: Ctrl+C raises KeyboardInterrupt instead
+        pass
 
     print(f"[worker] ready - reading '{KAFKA_TOPIC_INCOMING}', writing '{KAFKA_TOPIC_OUTGOING}' (Kafka {KAFKA_BROKERS})")
 

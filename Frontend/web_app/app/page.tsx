@@ -1,17 +1,15 @@
-"use client";
+"use client"
+import {useEffect} from "react"
+
+export default function Page() {
+    useEffect(()=>{localStorage.setItem("Login" , "true")}
 
 
-import App_Header from "./components/App_Header";
-import Profile from "./Application/components/Profile/profile";
-import Services from "./Application/components/Services/Services";
+    ,[]) 
+    return(
 
-export default function ApplicationPage() {
-
-  return (
-    <main className="app-page">
-      <App_Header />
-      <Profile />
-      <Services />
-    </main>
-  );
+        <div>
+            checking login 
+        </div>
+    )
 }
