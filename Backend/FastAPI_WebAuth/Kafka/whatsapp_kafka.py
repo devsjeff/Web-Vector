@@ -18,7 +18,6 @@ import json
 import signal
 import time
 import uuid
-from collections import defaultdict
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
@@ -35,6 +34,9 @@ from FastAPI_WebAuth.Common_configs import (
 from FastAPI_WebAuth.db.App import Read_WhatsappConfig
 from FastAPI_WebAuth.db.web_db import get_user_by_email
 from FastAPI_WebAuth.Kafka.events import IncomingEvent, OutgoingEvent
+
+RETRY_BASE_SECONDS = 2
+RETRY_MAX_SECONDS = 30
 
 
 # ====================================================================== 1. THE BRAIN (no Kafka in here)
@@ -112,12 +114,7 @@ async def _handle_one(msg, producer: AIOKafkaProducer) -> None:
         return
 
     print(f"[worker] in : {event.email} <- {event.chat_with_number}: {event.message.text[:80]!r}")
-    try:
-        outgoing = await process_event(event)
-    except Exception as e:
-        # One failing message (LLM down, DB down ...) must never stop the whole worker.
-        print(f"[worker] failed {event.event_id}: {type(e).__name__}: {e}")
-        return
+    outgoing = await process_event(event)
 
     if outgoing is None:
         return
@@ -125,12 +122,6 @@ async def _handle_one(msg, producer: AIOKafkaProducer) -> None:
     payload = json.dumps(outgoing.model_dump(by_alias=True)).encode()
     await producer.send_and_wait(KAFKA_TOPIC_OUTGOING, value=payload, key=msg.key)
     print(f"[worker] out: {outgoing.email} -> {outgoing.chat_with_number}: {outgoing.reply[:80]!r}")
-
-
-async def _handle_chat_group(msgs: list, producer: AIOKafkaProducer) -> None:
-    """All messages of ONE chat, strictly in order (so replies never overtake each other)."""
-    for msg in msgs:
-        await _handle_one(msg, producer)
 
 
 async def run_worker() -> None:
@@ -158,20 +149,29 @@ async def run_worker() -> None:
 
     print(f"[worker] ready - reading '{KAFKA_TOPIC_INCOMING}', writing '{KAFKA_TOPIC_OUTGOING}' (Kafka {KAFKA_BROKERS})")
 
+    retry_attempts: dict[tuple, int] = {}
     try:
         while not stop.is_set():
-            batches = await consumer.getmany(timeout_ms=1000, max_records=20)
-            messages = [m for partition_msgs in batches.values() for m in partition_msgs]
-            if not messages:
-                continue
+            batches = await consumer.getmany(timeout_ms=1000, max_records=1)
+            for topic_partition, messages in batches.items():
+                for msg in messages:
+                    message_key = (topic_partition, msg.offset)
+                    try:
+                        await _handle_one(msg, producer)
+                    except Exception as error:
+                        attempt = retry_attempts.get(message_key, 0) + 1
+                        retry_attempts[message_key] = attempt
+                        delay = min(RETRY_BASE_SECONDS * 2 ** min(attempt - 1, 4), RETRY_MAX_SECONDS)
+                        print(
+                            f"[worker] retrying offset {msg.offset} in {delay}s after "
+                            f"{type(error).__name__}: {error}"
+                        )
+                        consumer.seek(topic_partition, msg.offset)
+                        await asyncio.sleep(delay)
+                        break
 
-            # Different chats are answered in parallel (LLM calls are slow), one chat is answered in order.
-            by_chat = defaultdict(list)
-            for m in messages:
-                by_chat[m.key or b""].append(m)
-            await asyncio.gather(*(_handle_chat_group(group, producer) for group in by_chat.values()))
-
-            await consumer.commit()
+                    await consumer.commit()
+                    retry_attempts.pop(message_key, None)
     finally:
         print("[worker] stopping ...")
         await consumer.stop()

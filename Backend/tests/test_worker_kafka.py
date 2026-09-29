@@ -212,5 +212,8 @@ async def test_worker_survives_llm_failure_and_garbage(fake_llm, worker, configu
     httpx.post(f"{LLM_URL}/_fail_next", params={"count": 0})
     await produce(worker["in"], make_event(email, "second (LLM is back)"), key="k")
 
-    out = await read_outgoing(worker["out"], expected=1, timeout=30)
-    assert [o["reply"] for o in out] == ["[fake-llm] second (LLM is back)"]
+    out = await read_outgoing(worker["out"], expected=2, timeout=30)
+    assert [o["reply"] for o in out] == [
+        "[fake-llm] first (LLM is failing)",
+        "[fake-llm] second (LLM is back)",
+    ]
