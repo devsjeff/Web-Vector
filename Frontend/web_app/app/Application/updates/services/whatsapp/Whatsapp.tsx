@@ -425,12 +425,11 @@ export default function Whatsapp() {
           <div className={style.cardIcon}>⌁</div>
           <div className={style.cardContent}>
             <div className={style.cardTop}>
-              <span className={style.cardLabel}>AUTOMATION</span>
+              <span className={style.cardLabel}>Tools</span>
               <span className={style.cardChevron}>↗</span>
             </div>
-            <h3>Automation settings</h3>
             <p>
-              A space for future controls such as replies, limits, schedules
+              A space for future controls such as calender , limits, schedules
               and other WhatsApp automations.
             </p>
           </div>

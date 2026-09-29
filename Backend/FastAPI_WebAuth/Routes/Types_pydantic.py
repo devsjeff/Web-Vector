@@ -22,12 +22,16 @@ class SignupType(BaseModel):
     last_name: str | None = Field(default=None, max_length=20)
 
 
-class Configs_type (BaseModel):
+from pydantic import BaseModel
 
-    wtAcc: str = Field(min_length=12 , max_length=12 )
-    email: str = Field(min_length=5 , max_length=50)
-    role_identity :str |None = Field(default="default")
-    memory_Context :str |None = Field(default="default")
-    rules_instructions :str |None = Field(default="default")
-    response_Style :str |None = Field(default="default")
-    task :str |None = Field(default="default")
+class FieldState(BaseModel):
+    mode: str
+    customText: str = ""
+
+class Configs_type(BaseModel):
+    language: FieldState
+    roleIdentity: FieldState
+    memoryContext: FieldState
+    rulesInstructions: FieldState
+    responseStyle: FieldState
+    task: str = ""

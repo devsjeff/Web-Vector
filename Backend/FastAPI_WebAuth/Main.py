@@ -7,6 +7,8 @@ from slowapi.errors import RateLimitExceeded
 
 from FastAPI_WebAuth.Routes.config import limiter
 from FastAPI_WebAuth.Routes.web.Web_routes import WEBrouter
+from FastAPI_WebAuth.Routes.app_routes.Whatsapp_configs import APP_ROUTER
+
 from FastAPI_WebAuth.db.web_db import init_db
 
 
@@ -22,8 +24,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(WEBrouter)
+app.include_router(APP_ROUTER)
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(
+    RateLimitExceeded,
+    _rate_limit_exceeded_handler,  # type: ignore[arg-type]
+)
 
 app.add_middleware(
     CORSMiddleware,
