@@ -65,3 +65,41 @@ def test_long_messages_are_clipped():
 def test_think_tags_never_reach_the_contact():
     assert clean_reply("<think>secret plan</think>Hello there!") == "Hello there!"
     assert clean_reply("  \n hi \n") == "hi"
+
+
+def test_contact_custom_sarcastic_tone_override():
+    contact_cfg = {
+        "enabled": True,
+        "toneStyle": "sarcastic",
+        "task": "Tease my buddy Rahul playfully",
+        "notes": "Rahul is my college roommate",
+    }
+    prompt = build_system_prompt(CONFIG, contact_name="Rahul", contact_number="919999999999", contact_config=contact_cfg)
+    assert "sarcasm and playful dry humor" in prompt
+    assert "Tease my buddy Rahul playfully" in prompt
+    assert "Rahul is my college roommate" in prompt
+    # Preserves safety rules
+    assert all(rule in prompt for rule in BASE_RULES)
+
+
+def test_contact_override_falls_back_to_global_when_disabled():
+    contact_cfg = {
+        "enabled": False,
+        "toneStyle": "sarcastic",
+        "task": "Should not appear",
+    }
+    prompt = build_system_prompt(CONFIG, contact_name="Rahul", contact_number="919999999999", contact_config=contact_cfg)
+    assert "Should not appear" not in prompt
+    assert "Book haircut appointments" in prompt  # Global task used instead
+
+
+def test_pgvector_memories_injected_into_prompt():
+    memories = [
+        {"memoryText": "Contact previously ordered a pepperoni pizza on Friday"},
+        {"memoryText": "Contact requested extra spicy seasoning"},
+    ]
+    prompt = build_system_prompt(CONFIG, contact_name="Rahul", contact_number="919999999999", retrieved_memories=memories)
+    assert "PgVector long-term memory" in prompt
+    assert "pepperoni pizza on Friday" in prompt
+    assert "extra spicy seasoning" in prompt
+

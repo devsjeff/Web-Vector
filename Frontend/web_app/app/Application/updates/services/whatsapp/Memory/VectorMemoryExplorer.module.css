@@ -1,0 +1,161 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.headerCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 24px;
+  border: 1px solid rgba(232, 221, 207, 0.15);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 10% 20%, rgba(232, 221, 207, 0.05), transparent 40%),
+    #111c22;
+}
+
+.headerCard h3 {
+  margin: 0 0 6px;
+  font-size: 1.2rem;
+  color: #f4eee8;
+}
+
+.headerCard p {
+  margin: 0;
+  font-size: 0.86rem;
+  color: #92a0a6;
+  max-width: 580px;
+}
+
+.statsPill {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  font-size: 0.8rem;
+  color: #cfd8dc;
+  white-space: nowrap;
+}
+
+.statsPill strong {
+  color: #e8ddcf;
+  font-weight: 700;
+}
+
+.searchBar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.input {
+  flex: 1;
+  min-width: 260px;
+  padding: 11px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  background: rgba(14, 23, 29, 0.7);
+  color: #f4eee8;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.input:focus {
+  border-color: #e8ddcf;
+}
+
+.btn {
+  padding: 11px 20px;
+  border: none;
+  border-radius: 9px;
+  background: #e8ddcf;
+  color: #111c22;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.btn:hover {
+  background: #f7ede2;
+  transform: translateY(-1px);
+}
+
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.memCard {
+  padding: 16px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  transition: all 180ms ease;
+}
+
+.memCard:hover {
+  border-color: rgba(232, 221, 207, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.memContent {
+  flex: 1;
+}
+
+.memText {
+  margin: 0 0 8px;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: #e6edf0;
+}
+
+.memMeta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 0.74rem;
+  color: #7a8b92;
+}
+
+.memMeta span {
+  font-family: monospace;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.delBtn {
+  border: none;
+  background: transparent;
+  color: #8e9ca2;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+.delBtn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.empty {
+  padding: 48px;
+  text-align: center;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  color: #839197;
+}

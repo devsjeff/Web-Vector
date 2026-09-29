@@ -48,3 +48,23 @@ class Configs_type(BaseModel):
     rulesInstructions: FieldState
     responseStyle: FieldState
     task: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=3000)]
+
+
+class ContactConfigType(BaseModel):
+    whatsappNumber: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=50)]
+    contactName: Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)] = ""
+    enabled: bool = True
+    toneStyle: Annotated[str, StringConstraints(strip_whitespace=True, max_length=50)] = "sarcastic"
+    language: FieldState | None = None
+    roleIdentity: FieldState | None = None
+    memoryContext: FieldState | None = None
+    rulesInstructions: FieldState | None = None
+    responseStyle: FieldState | None = None
+    task: Annotated[str, StringConstraints(strip_whitespace=True, max_length=3000)] = ""
+    notes: Annotated[str, StringConstraints(strip_whitespace=True, max_length=3000)] = ""
+
+
+class MemoryCreateType(BaseModel):
+    whatsappNumber: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=50)]
+    memoryText: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
+

@@ -599,3 +599,46 @@
     max-height: calc(100vh - 24px);
   }
 }
+
+.navTabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 24px 0 28px;
+  padding: 6px;
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  background: rgba(14, 23, 29, 0.5);
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.navTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--app-muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 160ms ease;
+}
+
+.navTab:hover {
+  color: var(--app-text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.navTabActive {
+  background: rgba(232, 221, 207, 0.12);
+  color: var(--app-text);
+  border: 1px solid rgba(232, 221, 207, 0.25);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+

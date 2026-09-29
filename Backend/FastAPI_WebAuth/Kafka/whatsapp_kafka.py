@@ -24,6 +24,7 @@ from pydantic import ValidationError
 
 from FastAPI_WebAuth.AI_AI_AI_AI_AI_AI.prompt_builder import DEFAULT_ASSISTANT_CONFIG, build_messages, build_system_prompt
 from FastAPI_WebAuth.AI_AI_AI_AI_AI_AI.WhatsappAi import generate_reply
+from FastAPI_WebAuth.AI_AI_AI_AI_AI_AI.embeddings import generate_embedding
 from FastAPI_WebAuth.Common_configs import (
     EVENT_MAX_AGE_SECONDS,
     KAFKA_BROKERS,
@@ -31,7 +32,13 @@ from FastAPI_WebAuth.Common_configs import (
     KAFKA_TOPIC_OUTGOING,
     KAFKA_WORKER_GROUP_ID,
 )
-from FastAPI_WebAuth.db.App import Read_WhatsappConfig
+from FastAPI_WebAuth.db.App import (
+    Read_WhatsappConfig,
+    Read_ContactConfig,
+    Record_ContactMessage,
+    Save_ChatMemory,
+    Search_ChatMemories,
+)
 from FastAPI_WebAuth.db.web_db import get_user_by_email
 from FastAPI_WebAuth.Kafka.events import IncomingEvent, OutgoingEvent
 
@@ -48,6 +55,27 @@ async def process_event(event: IncomingEvent) -> OutgoingEvent | None:
     if event.chat_with_number and event.whatsapp_number and event.chat_with_number == event.whatsapp_number:
         return None
 
+    # Track conversation count and last activity for this contact number
+    if event.chat_with_number:
+        try:
+            await Record_ContactMessage(
+                email=event.email,
+                whatsapp_number=event.chat_with_number,
+                contact_name=event.contact_name,
+                message_text=event.message.text,
+            )
+        except Exception as e:
+            print(f"[worker] stat record error: {e}")
+
+    # Check for per-contact custom configuration (unique style, sarcastic tone, custom instructions)
+    contact_config = None
+    if event.chat_with_number:
+        try:
+            contact_config = await Read_ContactConfig(event.email, event.chat_with_number)
+        except Exception as e:
+            print(f"[worker] contact config read error: {e}")
+
+    # Global assistant settings fallback
     config = await Read_WhatsappConfig(event.email)
     if config is None:
         if await get_user_by_email(event.email) is None:
@@ -56,11 +84,27 @@ async def process_event(event: IncomingEvent) -> OutgoingEvent | None:
         config = DEFAULT_ASSISTANT_CONFIG
         print(f"[worker] {event.email} has no saved settings; using safe default assistant behavior")
 
+    # Semantic memory retrieval from PgVector using message embedding
+    retrieved_memories = []
+    if event.chat_with_number and event.message.text:
+        try:
+            query_emb = await generate_embedding(event.message.text)
+            retrieved_memories = await Search_ChatMemories(
+                email=event.email,
+                whatsapp_number=event.chat_with_number,
+                query_embedding=query_emb,
+                limit=4,
+            )
+        except Exception as e:
+            print(f"[worker] pgvector memory search error: {e}")
+
     system_prompt = build_system_prompt(
         config,
         contact_name=event.contact_name,
         contact_number=event.chat_with_number,
         owner_number=event.whatsapp_number,
+        contact_config=contact_config,
+        retrieved_memories=retrieved_memories,
     )
     history = [{"text": m.text, "from_me": m.from_me} for m in event.history]
     current = {"text": event.message.text, "from_me": False}
@@ -71,6 +115,23 @@ async def process_event(event: IncomingEvent) -> OutgoingEvent | None:
         print(f"[worker] skip {event.event_id}: the LLM returned an empty reply")
         return None
 
+    # Save interaction into PgVector memory for persistent semantic recall
+    if event.chat_with_number and reply:
+        try:
+            turn_text = f"Contact: {event.message.text} | Assistant: {reply}"
+            turn_emb = await generate_embedding(turn_text)
+            await Save_ChatMemory(
+                email=event.email,
+                whatsapp_number=event.chat_with_number,
+                embedding=turn_emb,
+                sender_text=event.message.text,
+                contact_text=reply,
+                memory_text=turn_text,
+                chatId=event.chat_jid,
+            )
+        except Exception as e:
+            print(f"[worker] pgvector memory save error: {e}")
+
     return OutgoingEvent(
         event_id=str(uuid.uuid4()),
         created_at=int(time.time() * 1000),
@@ -80,6 +141,7 @@ async def process_event(event: IncomingEvent) -> OutgoingEvent | None:
         reply=reply,
         in_reply_to=event.message.message_id,
     )
+
 
 
 async def ensure_topics() -> None:

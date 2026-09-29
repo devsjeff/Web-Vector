@@ -1,122 +1,192 @@
-# Web Vector
+# Web-Vector
 
-A WhatsApp AI assistant you configure from a dashboard. Someone messages your WhatsApp -> an AI answers **as you**,
-using the role, style, task and rules you saved. Each user links their own WhatsApp by scanning a QR code.
+**An Event-Driven AI Automation Platform with PgVector Semantic Memory & Per-Contact Personas.**
+
+Web-Vector turns conversational channels (WhatsApp, Webhooks, APIs) into an autonomous workflow system. It features **768-dimensional PgVector long-term semantic memory**, an adaptive **per-contact persona engine (with unique tones like playful sarcasm, witty banter, or corporate polish)**, and real-time chat volume intelligence.
+
+---
+
+## Architecture Overview
 
 ```
- Browser (Next.js :3000)
-   |  login / signup / assistant settings                 QR / status / logout
-   v                                                              v
- FastAPI :8000 (Python)                                  Fastify :3001 (Node)
-   |  Postgres: users + assistant settings                  |  Baileys = one WhatsApp socket per user
-   |  Redis:    OTP codes                                    |  MongoDB: WhatsApp login data (no re-scan)
-   |                                                         |
-   |        +---------------- Kafka ----------------+       |
-   |        |  whatsapp.incoming   (Node -> Python) |<------+  contact wrote: last 20 messages + new one
-   +------->|  whatsapp.outgoing   (Python -> Node) |------>+  AI reply -> sent on WhatsApp
-            +---------------------------------------+
-                   ^
-        Python worker (whatsapp_kafka.py): reads the user's settings from Postgres,
-        builds the prompt, asks the LLM (OpenRouter by default), writes the reply back.
+                      +---------------------------------------+
+                      |   Next.js 16 Web Dashboard (:3000)   |
+                      |   - Phone Number & Chat Count Search  |
+                      |   - Custom Sarcastic/Tone Personas    |
+                      |   - PgVector Semantic Memory Bank     |
+                      |   - Global Assistant Behavior Studio  |
+                      +---------------------------------------+
+                                  |                 |
+                   Auth / Config  |                 | QR / Status / Logout
+                                  v                 v
+                 +----------------------+     +----------------------+
+                 | FastAPI :8000 Python |     |  Fastify :3001 Node  |
+                 | - Users & JWT Auth   |     | - Baileys WA Sockets |
+                 | - Contact Personas   |     | - Mongo Auth Store   |
+                 | - PgVector Memories  |     | - Message Debouncing |
+                 +----------------------+     +----------------------+
+                            |                            |
+                            |       +------------+       |
+                            |       |   Kafka    |       |
+                            |       | Topic: in  |<------+ (Debounced incoming messages)
+                            +------>| Topic: out |------>+ (AI Replies -> WhatsApp)
+                                    +------------+
+                                          ^
+                                          |
+                      +---------------------------------------+
+                      | Python Worker (whatsapp_kafka.py)     |
+                      | 1. Read event (email, contact number) |
+                      | 2. Increment contact chat count       |
+                      | 3. Query PgVector (cosine similarity) |
+                      | 4. Load contact persona / sarcasm     |
+                      |    (Falls back to global if unset)    |
+                      | 5. Generate LLM response              |
+                      | 6. Commit turn into PgVector memory   |
+                      | 7. Send reply to Kafka outgoing       |
+                      +---------------------------------------+
 ```
 
-The login cookie is a JWT that **FastAPI signs and Fastify verifies with the same `JWT_SECRET`**.
+---
 
-## Run it
+## Core Capabilities
 
-You need: Docker, Node 20+, Python 3.11+.
+### 1. PgVector 768-Dimensional Semantic Memory
+- **Persistent Recall**: Conversations and facts are converted to 768-dimensional vector embeddings using cosine distance (`<=>`).
+- **Zero Amnesia**: When an incoming message arrives, the worker queries PgVector for relevant past conversations for that `(email, whatsapp_number)` pair and injects them into the system prompt.
+- **Auto-Commit**: Each completed interaction turn is automatically indexed into PostgreSQL via `pgvector`.
+- **Manual Fact Storing**: Add custom facts or notes directly from the dashboard to seed knowledge.
 
+### 2. Dynamic Per-Contact Personas & Tones (Sarcasm, Banter, etc.)
+- **Per-Contact Overrides**: Configure specific speaking tones per contact number:
+  - 🎭 **Sarcastic**: Sharp, witty dry humor and playful banter.
+  - 🔥 **Playful Roast**: Friendly teasing and humorous comebacks.
+  - ⚡ **Witty**: Clever wordplay and fast-thinking quips.
+  - 🤝 **Friendly**: Warm, encouraging, and supportive.
+  - 💼 **Professional**: Structured, courteous, and business-focused.
+  - 😎 **Cool**: Relaxed, casual, short confident sentences.
+  - ✍️ **Custom**: Tailored prompt instructions per phone number.
+- **Intelligent Global Fallback**: If a contact does not have custom settings (or if the override is toggled off), the assistant automatically falls back to your global workspace settings.
+
+### 3. Contact & Chat Volume Intelligence
+- **Number Search**: Search active or new phone numbers instantly.
+- **Number of Chats Counter**: View message volume and interaction frequencies per contact.
+- **Pre-Configure Numbers**: Add and configure custom personas for contacts before they even message.
+
+### 4. WhatsApp Automation Hub
+- **Baileys Web Socket Engine**: Connect via QR scan (WhatsApp -> Linked devices).
+- **Session Persistence**: Credentials stored in MongoDB so Node restarts do not require re-scanning.
+- **Anti-Spam & Debounce**: Groups quick sequential messages into a single 2-second debounced batch. Contacts sending >5 msgs/min are rate-limited.
+
+### 5. Multi-Channel & Workflow Automations
+- **Webhooks & API Triggers**: Incoming and outgoing HTTP webhooks for CRM and calendar syncing.
+- **Scheduled Actions**: Support for automated check-ins and cron jobs.
+
+---
+
+## Quickstart Guide
+
+### Prerequisites
+- **Node.js 20+**
+- **Python 3.11+**
+- **Docker & Docker Compose** (for PostgreSQL with `pgvector`, Redis, Kafka, MongoDB)
+
+### 1. Start Infrastructure
 ```bash
-# 1. databases + Kafka
 docker compose up -d
+```
+*This launches:*
+- `postgres`: `pgvector/pgvector:pg16` on port `5432`
+- `redis`: Redis 7 on port `6379`
+- `kafka`: Apache Kafka 3.9 on port `9092`
+- `mongodb`: MongoDB 8.3 on port `27017`
 
-# 2. config (one .env for Python AND Node)
-cp Backend/.env.example Backend/.env
-#    fill in: JWT_SECRET, OPENROUTER_API_KEY   (+ EMAIL_ADDRESS / EMAIL_APP_PASSWORD for signup OTP mails)
+### 2. Configure Environment
+Create `Backend/.env` (shared by Python and Node):
+```env
+DEV_MODE=true
+JWT_SECRET=dev-only-secret-change-me-before-production-0123456789
 
-# 3. Python (needs its own terminal for each of the two commands at the bottom)
+# Database URLs
+DATABASE_URL=postgresql+asyncpg://webvector:webvector@localhost:5432/webvector
+REDIS_URL=redis://localhost:6379/0
+MONGODB_URL=mongodb://localhost:27017
+
+# Kafka
+KAFKA_BROKERS=localhost:9092
+
+# LLM (OpenRouter / OpenAI / Local)
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_API_KEY=your-openrouter-or-openai-api-key
+LLM_MODEL=openrouter/free
+```
+
+### 3. Start Python API & Worker
+```bash
+# Terminal 1: FastAPI API Server
 cd Backend
-python -m venv .venv && source .venv/bin/activate        # Windows: .venv\Scripts\activate
+python -m venv .venv
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn FastAPI_WebAuth.Main:app --reload --port 8000    # API: login, signup, assistant settings
-python -m FastAPI_WebAuth.Kafka.whatsapp_kafka           # worker: Kafka <-> Postgres <-> AI
-cd ..
+uvicorn FastAPI_WebAuth.Main:app --reload --port 8000
 
-# 4. Node: Fastify + Baileys + Kafka bridge
+# Terminal 2: Python Kafka Automation Worker
+cd Backend
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
+python -m FastAPI_WebAuth.Kafka.whatsapp_kafka
+```
+
+### 4. Start Node Fastify & Baileys Bridge
+```bash
+# Terminal 3
 npm install
 npm start
-
-# 5. Frontend
-cd Frontend/web_app && npm install && npm run dev        # http://localhost:3000
 ```
 
-Then: sign up -> **Application -> WhatsApp -> Connect** -> scan the QR (WhatsApp -> Linked devices) ->
-message your number from another phone. A cautious default assistant replies as soon as WhatsApp connects;
-open **Assistant behavior** and press **Update settings** any time to customize it.
+### 5. Start Next.js Frontend
+```bash
+# Terminal 4
+cd Frontend/web_app
+npm install
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-> Default replies use the sender's language, stay concise, and avoid inventing facts or making commitments.
+---
 
-## What the assistant does with a message
+## REST API Reference
 
-1. Node collects the contact's messages for `REPLY_DEBOUNCE_MS` (2s) so three quick texts get **one** answer.
-2. Node sends `{ email, numbers, last 20 messages, new message }` to Kafka. Duplicates, groups, your own
-   "message yourself" chat, old backlog and contacts writing more than 5 messages/minute are ignored.
-3. Python loads that user's settings from Postgres and builds the system prompt: **role, language, response style,
-   memory instructions, main task, your rules**. Built-in safety rules are always added on top of your rules and
-   cannot be replaced by them (no leaking other chats, ignore "forget your instructions", no secrets/OTPs ...).
-4. The LLM answers, Python writes the reply to Kafka, Node sends it from the right user's WhatsApp.
+### Global Assistant Settings
+- `GET /App/whatsapp_config`: Retrieve current global assistant settings.
+- `POST /App/whatsapp_config`: Update global assistant language, role, memory, rules, style, task.
 
-## Tests
+### Contacts & Chat Personas
+- `GET /App/contacts?query=`: Returns contacts, number of chats, memory counts, and custom tone status.
+- `GET /App/contact_config?number={phone}`: Returns custom configuration for a specific contact.
+- `POST /App/contact_config`: Save custom speaking style (e.g. sarcastic), custom task, and notes for a contact.
+- `DELETE /App/contact_config?number={phone}`: Remove contact override and revert to global settings.
+
+### PgVector Memories
+- `GET /App/memories?number={phone}&query={search}`: Semantic vector search or list memories.
+- `POST /App/memories`: Embed and store a new 768-dim fact into PgVector.
+- `DELETE /App/memories/{id}`: Delete a specific memory by ID.
+
+### Automations Overview
+- `GET /App/automations`: High-level metrics on active channels, personas, and memory storage.
+
+---
+
+## Testing
 
 ```bash
-docker compose up -d                                  # tests use the real Postgres / Redis / Mongo / Kafka
-cd Backend && pip install -r requirements-dev.txt
-pytest                                                # auth flow, settings API, prompt builder, Kafka worker
-cd .. && npm run typecheck && npm test                # Node: chat pipeline + Mongo auth store
-bash Backend/tests/run_e2e.sh                         # WHOLE loop: Node -> Kafka -> Python -> Postgres -> AI -> Kafka -> Node
+# Run unit tests for prompt builder, per-contact custom tones & sarcasm, and PgVector embeddings:
+cd Backend
+python -m pytest tests/test_prompt_builder.py tests/test_contact_memory.py
+
+# Run Node pipeline tests:
+npm test
 ```
 
-The tests never call a real LLM or WhatsApp (`Backend/tests/fake_llm.py` is a tiny fake OpenAI server, the
-end-to-end test uses a fake WhatsApp socket).
-**Not covered by automatic tests:** the real Baileys connection - scanning a QR with a real phone and receiving
-real WhatsApp messages. Test that by hand once (step "Then:" above).
+---
 
-## Settings (`Backend/.env`)
-
-| Variable | Meaning |
-|---|---|
-| `JWT_SECRET` | Same value for Python and Node. Required when `DEV_MODE=false` / `FASTIFY_NODE_ENV=production`. |
-| `OPENROUTER_API_KEY`, `LLM_MODEL` | Any OpenAI-compatible API works: set `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` (OpenAI, a local server ...). |
-| `MAX_SESSIONS` | Max WhatsApp sockets at once (default 10). Extra users get "server is full". |
-| `HISTORY_SIZE` | Older messages sent to the AI with the new one (default 20). |
-| `REPLY_DEBOUNCE_MS` | Wait for more messages before answering (default 2000). |
-| `CONTACT_RATE_LIMIT_PER_MIN` | A contact writing more than this is ignored (default 5). |
-| `EVENT_MAX_AGE_SECONDS` | Kafka events older than this are dropped, never replayed to real people (default 900). |
-
-## Folders
-
-```
-Backend/FastAPI_WebAuth/   Python: Main.py (API), Routes/ (auth + settings), db/ (Postgres), Cache/ (Redis OTP),
-                           AI_AI_AI_AI_AI_AI/ (prompt_builder.py + WhatsappAi.py = LLM), Kafka/whatsapp_kafka.py (worker)
-Backend/Node/              Fastify/ (server + routes), Baileys/ (CreateSession = sessions, ChatPipeline = history/debounce,
-                           BaileysApi = what the routes call), Mongo/ (WhatsApp login store), Kafka/ (kafkajs bridge), Auth/ (JWT)
-Backend/tests/             pytest + fake LLM + end-to-end script        Backend/Node/tests/   Node tests
-Frontend/web_app/          Next.js dashboard
-```
-
-## Known limits (good next steps)
-
-- Chat history lives in Node memory: after a Node restart the AI only knows messages from that moment on
-  (users stay linked, they do not need to scan again). Persisting it (Mongo / the `memory` pgvector table) is the next step.
-- Only text messages in direct chats are handled (no groups, voice notes, images).
-- Baileys is an unofficial WhatsApp Web library: fine for a project/demo, use the official WhatsApp Business API for a real product.
-- If the LLM is down for one message, that message gets no reply (the worker logs it and moves on).
-
-## Troubleshooting
-
-- **No reply at all:** is the Python worker running, is WhatsApp connected, and is an LLM key set? Check the worker log
-  (`[worker] in:` / `out:` lines) and the Node log (`[kafka] ready`, `replied to ...`).
-- **`No LLM key found` in the worker log:** `OPENROUTER_API_KEY` is empty in `Backend/.env`.
-- **QR never appears / 504:** WhatsApp Web version changed or no internet from Node; look at the Node log, then retry.
-- **401 from Fastify but you are logged in:** `JWT_SECRET` differs between Python and Node (they read the same `Backend/.env`).
-- **Kafka not reachable:** `docker compose ps`; Kafka needs ~30s after `up`. Both Node and Python retry on start.
+## License
+MIT License. Built with Next.js, FastAPI, Fastify, Baileys, Apache Kafka, and PostgreSQL PgVector.

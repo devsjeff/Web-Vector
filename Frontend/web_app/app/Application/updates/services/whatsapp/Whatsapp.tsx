@@ -4,6 +4,9 @@ import style from "./Whatsapp.module.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import ConfigCard from "./Settings/settings";
+import ContactManager from "./Contacts/ContactManager";
+import VectorMemoryExplorer from "./Memory/VectorMemoryExplorer";
+
 
 const API = "http://localhost:3001";
 const CONFIG_API = "http://localhost:8000/App/whatsapp_config";
@@ -75,6 +78,8 @@ export default function Whatsapp() {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [settingscard, setstngcard] = useState(false);
   const [assistantSetup, setAssistantSetup] = useState<AssistantSetup>("checking");
+  const [workspaceTab, setWorkspaceTab] = useState<"channel" | "contacts" | "memory">("channel");
+
 
   const forceRefreshRef = useRef<() => void>(() => {});
   const qrRef = useRef<string | null>(null);
@@ -354,146 +359,207 @@ export default function Whatsapp() {
         </div>
       )}
 
-      {showQrCard ? (
-        <section className={style.connectPanel}>
-          <div className={style.qrSide}>
-            <div className={style.qrFrame}>
-              {qr ? (
-                <QRCodeSVG
-                  value={qr}
-                  size={270}
-                  level="M"
-                  marginSize={3}
-                  bgColor="transparent"
-                  fgColor="currentColor"
-                />
-              ) : (
-                <div className={style.qrLoading}>
-                  <span className={style.spinner} />
-                  <span>Preparing QR…</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className={style.connectCopy}>
-            <span className={style.sectionKicker}>SECURE CONNECTION</span>
-            <h2>Link your WhatsApp</h2>
-            <p>
-              Open WhatsApp on your phone, go to <strong>Linked devices</strong>
-              , then scan this QR code.
-            </p>
-
-            <div className={style.steps}>
-              <div className={style.step}>
-                <span>01</span>
-                <p>Open WhatsApp on your phone.</p>
-              </div>
-              <div className={style.step}>
-                <span>02</span>
-                <p>Choose Linked devices → Link a device.</p>
-              </div>
-              <div className={style.step}>
-                <span>03</span>
-                <p>Scan the QR shown here.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-      ) : (
-        <section className={style.heroCard}>
-          <div>
-            <span className={style.sectionKicker}>WHATSAPP CHANNEL</span>
-            <h2>
-              {!isConnected
-                ? "Ready to connect."
-                : assistantSetup === "ready"
-                  ? "Your assistant is live."
-                  : assistantSetup === "defaults"
-                    ? "Your assistant is live with default settings."
-                    : assistantSetup === "checking"
-                      ? "Checking assistant setup."
-                      : "WhatsApp is connected."}
-            </h2>
-            <p>
-              {!isConnected
-                ? "Connect a WhatsApp account to start using your assistant."
-                : assistantSetup === "ready"
-                  ? "Your WhatsApp session is active and ready to reply to messages."
-                  : assistantSetup === "defaults"
-                    ? "Replies use a cautious default behavior until you customize the assistant."
-                    : assistantSetup === "unavailable"
-                      ? "WhatsApp is linked, but assistant setup could not be checked. Open settings to verify it."
-                      : "WhatsApp is linked. Checking whether assistant behavior has been saved."}
-            </p>
-            {isConnected && (assistantSetup === "defaults" || assistantSetup === "unavailable") && (
-              <button
-                type="button"
-                className={`${style.button} ${style.buttonPrimary} ${style.setupButton}`}
-                onClick={() => setstngcard(true)}
-              >
-                Customize assistant
-              </button>
-            )}
-          </div>
-
-          <div className={`${style.bigStatus} ${isConnected ? style.bigStatusLive : ""}`}>
-            <StatusDot state={status} />
-            <div>
-              <strong>{isConnected ? "Live" : statusLabel}</strong>
-              <span>{whatsappNumber || "No account linked"}</span>
-            </div>
-          </div>
-        </section>
-      )}
-
-      <div className={style.sectionHeader}>
-        <div>
-          <span className={style.sectionKicker}>WORKSPACE</span>
-          <h2>Manage your assistant</h2>
-        </div>
-        <span className={style.sectionHint}>2 controls available</span>
-      </div>
-
-      <div className={style.grid}>
+      {/* Workspace Tabs */}
+      <div className={style.navTabs} role="tablist">
         <button
           type="button"
-          className={`${style.card} ${style.cardInteractive}`}
-          onClick={() => setstngcard(true)}
+          className={`${style.navTab} ${workspaceTab === "channel" ? style.navTabActive : ""}`}
+          onClick={() => setWorkspaceTab("channel")}
         >
-          <div className={`${style.cardIcon} ${style.cardIconAccent}`}>✦</div>
-          <div className={style.cardContent}>
-            <div className={style.cardTop}>
-              <span className={style.cardLabel}>AUTOMATION</span>
-              <span className={style.cardChevron}>↗</span>
-            </div>
-            <h3>Assistant behavior</h3>
-            <p>
-              Set language, role, memory, rules, response style and the main
-              task for your WhatsApp assistant.
-            </p>
-          </div>
+          <span>📡</span>
+          <span>WhatsApp Channel & Pairing</span>
         </button>
 
-        <button type="button" className={`${style.card} ${style.cardInteractive}`}>
-          <div className={style.cardIcon}>⌁</div>
-          <div className={style.cardContent}>
-            <div className={style.cardTop}>
-              <span className={style.cardLabel}>Tools</span>
-              <span className={style.cardChevron}>↗</span>
-            </div>
-            <p>
-              A space for future controls such as calender , limits, schedules
-              and other WhatsApp automations.
-            </p>
-          </div>
+        <button
+          type="button"
+          className={`${style.navTab} ${workspaceTab === "contacts" ? style.navTabActive : ""}`}
+          onClick={() => setWorkspaceTab("contacts")}
+        >
+          <span>📱</span>
+          <span>Contacts & Chat Personas</span>
+        </button>
+
+        <button
+          type="button"
+          className={`${style.navTab} ${workspaceTab === "memory" ? style.navTabActive : ""}`}
+          onClick={() => setWorkspaceTab("memory")}
+        >
+          <span>🧠</span>
+          <span>PgVector Memory Bank</span>
         </button>
       </div>
 
-      <div className={style.footerNote}>
-        <span className={style.footerDot} />
-        <span>Session status updates automatically</span>
-      </div>
+      {workspaceTab === "channel" && (
+        <>
+          {showQrCard ? (
+            <section className={style.connectPanel}>
+              <div className={style.qrSide}>
+                <div className={style.qrFrame}>
+                  {qr ? (
+                    <QRCodeSVG
+                      value={qr}
+                      size={270}
+                      level="M"
+                      marginSize={3}
+                      bgColor="transparent"
+                      fgColor="currentColor"
+                    />
+                  ) : (
+                    <div className={style.qrLoading}>
+                      <span className={style.spinner} />
+                      <span>Preparing QR…</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className={style.connectCopy}>
+                <span className={style.sectionKicker}>SECURE CONNECTION</span>
+                <h2>Link your WhatsApp</h2>
+                <p>
+                  Open WhatsApp on your phone, go to <strong>Linked devices</strong>
+                  , then scan this QR code.
+                </p>
+
+                <div className={style.steps}>
+                  <div className={style.step}>
+                    <span>01</span>
+                    <p>Open WhatsApp on your phone.</p>
+                  </div>
+                  <div className={style.step}>
+                    <span>02</span>
+                    <p>Choose Linked devices → Link a device.</p>
+                  </div>
+                  <div className={style.step}>
+                    <span>03</span>
+                    <p>Scan the QR shown here.</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+          ) : (
+            <section className={style.heroCard}>
+              <div>
+                <span className={style.sectionKicker}>WHATSAPP CHANNEL</span>
+                <h2>
+                  {!isConnected
+                    ? "Ready to connect."
+                    : assistantSetup === "ready"
+                      ? "Your assistant is live."
+                      : assistantSetup === "defaults"
+                        ? "Your assistant is live with default settings."
+                        : assistantSetup === "checking"
+                          ? "Checking assistant setup."
+                          : "WhatsApp is connected."}
+                </h2>
+                <p>
+                  {!isConnected
+                    ? "Connect a WhatsApp account to start using your assistant."
+                    : assistantSetup === "ready"
+                      ? "Your WhatsApp session is active and ready to reply to messages."
+                      : assistantSetup === "defaults"
+                        ? "Replies use a cautious default behavior until you customize the assistant."
+                        : assistantSetup === "unavailable"
+                          ? "WhatsApp is linked, but assistant setup could not be checked. Open settings to verify it."
+                          : "WhatsApp is linked. Checking whether assistant behavior has been saved."}
+                </p>
+                {isConnected && (assistantSetup === "defaults" || assistantSetup === "unavailable") && (
+                  <button
+                    type="button"
+                    className={`${style.button} ${style.buttonPrimary} ${style.setupButton}`}
+                    onClick={() => setstngcard(true)}
+                  >
+                    Customize assistant
+                  </button>
+                )}
+              </div>
+
+              <div className={`${style.bigStatus} ${isConnected ? style.bigStatusLive : ""}`}>
+                <StatusDot state={status} />
+                <div>
+                  <strong>{isConnected ? "Live" : statusLabel}</strong>
+                  <span>{whatsappNumber || "No account linked"}</span>
+                </div>
+              </div>
+            </section>
+          )}
+
+          <div className={style.sectionHeader}>
+            <div>
+              <span className={style.sectionKicker}>WORKSPACE</span>
+              <h2>Manage your assistant</h2>
+            </div>
+            <span className={style.sectionHint}>3 controls available</span>
+          </div>
+
+          <div className={style.grid}>
+            <button
+              type="button"
+              className={`${style.card} ${style.cardInteractive}`}
+              onClick={() => setstngcard(true)}
+            >
+              <div className={`${style.cardIcon} ${style.cardIconAccent}`}>✦</div>
+              <div className={style.cardContent}>
+                <div className={style.cardTop}>
+                  <span className={style.cardLabel}>GLOBAL AUTOMATION</span>
+                  <span className={style.cardChevron}>↗</span>
+                </div>
+                <h3>Global Assistant Behavior</h3>
+                <p>
+                  Default language, role, memory instructions, safety rules, response style,
+                  and baseline task when no contact-specific override is active.
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              className={`${style.card} ${style.cardInteractive}`}
+              onClick={() => setWorkspaceTab("contacts")}
+            >
+              <div className={style.cardIcon}>📱</div>
+              <div className={style.cardContent}>
+                <div className={style.cardTop}>
+                  <span className={style.cardLabel}>PER-CONTACT PERSONAS</span>
+                  <span className={style.cardChevron}>↗</span>
+                </div>
+                <h3>Custom Sarcastic & Chat Personas</h3>
+                <p>
+                  Search phone numbers, view chat volume statistics, and assign unique sarcasm, roast, or friendly tones per contact.
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              className={`${style.card} ${style.cardInteractive}`}
+              onClick={() => setWorkspaceTab("memory")}
+            >
+              <div className={style.cardIcon}>🧠</div>
+              <div className={style.cardContent}>
+                <div className={style.cardTop}>
+                  <span className={style.cardLabel}>PGVECTOR MEMORY</span>
+                  <span className={style.cardChevron}>↗</span>
+                </div>
+                <h3>Semantic Memory Explorer</h3>
+                <p>
+                  Inspect and search 768-dimensional vector memories stored in Postgres with cosine distance recall.
+                </p>
+              </div>
+            </button>
+          </div>
+
+          <div className={style.footerNote}>
+            <span className={style.footerDot} />
+            <span>Session status updates automatically</span>
+          </div>
+        </>
+      )}
+
+      {workspaceTab === "contacts" && <ContactManager />}
+
+      {workspaceTab === "memory" && <VectorMemoryExplorer />}
+
 
       {settingscard && (
         <div
