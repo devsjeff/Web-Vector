@@ -1,122 +1,191 @@
-/* This file assumes your theme variables (--background, --panel, --line, etc.)
-   are already declared on :root in your globals.css — the ones you pasted.
-   We only *use* var(--xyz) here, never redefine them. */
-
 .card {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 24px;
-  color: var(--foreground);
+  gap: 0;
+  overflow: hidden;
+  background: var(--panel, var(--app-panel));
+  border: 1px solid var(--line, var(--app-border));
+  border-radius: 20px;
+  color: var(--foreground, var(--app-text));
 }
 
 .header {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--line);
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 26px;
+  border-bottom: 1px solid var(--line, var(--app-border));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent, var(--app-accent)) 6%, transparent),
+    transparent 65%
+  );
+}
+
+.titleRow {
+  display: flex;
+  gap: 13px;
+  align-items: center;
+}
+
+.headerIcon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--line, var(--app-border));
+  border-radius: 11px;
+  color: var(--accent, var(--app-accent));
+  background: var(--panel-2, var(--app-panel-soft));
 }
 
 .title {
   margin: 0;
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--foreground);
+  font-size: 1.1rem;
+  font-weight: 750;
+  letter-spacing: -0.025em;
 }
 
 .subtitle {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--muted);
+  margin: 5px 0 0 51px;
+  color: var(--muted, var(--app-muted));
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.closeButton {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: 1px solid var(--line, var(--app-border));
+  border-radius: 10px;
+  background: var(--panel-2, var(--app-panel-soft));
+  color: var(--muted, var(--app-muted));
+  font-size: 17px;
+  cursor: pointer;
+  transition: 160ms ease;
+}
+
+.closeButton:hover {
+  color: var(--foreground, var(--app-text));
+  border-color: var(--accent, var(--app-accent));
 }
 
 .body {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 22px 26px;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
+  min-width: 0;
+}
+
+.fieldFull {
+  grid-column: 1 / -1;
 }
 
 .label {
-  font-size: 0.8rem;
-  color: var(--muted);
+  color: var(--muted, var(--app-muted));
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.03em;
+}
+
+.select,
+.textarea {
+  width: 100%;
+  border: 1px solid var(--line, var(--app-border));
+  border-radius: 11px;
+  background: var(--panel-2, var(--app-panel-soft));
+  color: var(--foreground, var(--app-text));
+  font: inherit;
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
 .select {
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px 12px;
-  color: var(--foreground);
-  font-size: 0.9rem;
-  outline: none;
-  appearance: none;
-}
-
-.select:focus-visible {
-  border-color: var(--accent);
+  min-height: 44px;
+  padding: 0 12px;
+  appearance: auto;
+  font-size: 0.82rem;
 }
 
 .textarea {
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px 12px;
-  color: var(--foreground);
-  font-size: 0.88rem;
-  font-family: inherit;
+  min-height: 92px;
+  padding: 11px 12px;
   resize: vertical;
-  outline: none;
+  font-size: 0.8rem;
+  line-height: 1.55;
 }
 
-.textarea:focus-visible {
-  border-color: var(--accent);
+.select:focus,
+.textarea:focus {
+  border-color: var(--accent, var(--app-accent));
+  box-shadow: 0 0 0 3px color-mix(
+    in srgb,
+    var(--accent, var(--app-accent)) 10%,
+    transparent
+  );
 }
 
 .textarea::placeholder {
-  color: var(--muted-dark);
+  color: var(--muted-dark, var(--app-muted));
+  opacity: 0.7;
 }
 
 .footer {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
+  justify-content: space-between;
+  gap: 15px;
+  padding: 17px 26px 20px;
+  border-top: 1px solid var(--line, var(--app-border));
+}
+
+.footerHint {
+  color: var(--muted, var(--app-muted));
+  font-size: 0.72rem;
 }
 
 .status {
-  font-size: 0.8rem;
-  color: var(--muted);
+  margin-left: auto;
+  color: var(--accent, var(--app-accent));
+  font-size: 0.76rem;
+  font-weight: 650;
 }
 
 .button {
-  background: var(--warm);
-  color: var(--background);
-  border: none;
-  border-radius: 8px;
-  padding: 10px 20px;
-  font-size: 0.9rem;
-  font-weight: 600;
+  min-height: 40px;
+  padding: 0 17px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--warm, var(--app-accent));
+  color: var(--background, #080808);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
   cursor: pointer;
+  transition: transform 150ms ease, filter 150ms ease;
 }
 
-.button:hover {
-  background: var(--warm-dark);
+.button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
 }
 
-.button:focus-visible {
-  outline: 2px solid var(--accent);
+.button:focus-visible,
+.closeButton:focus-visible,
+.select:focus-visible,
+.textarea:focus-visible {
+  outline: 2px solid var(--accent, var(--app-accent));
   outline-offset: 2px;
 }
 
@@ -125,8 +194,30 @@
   cursor: not-allowed;
 }
 
-@media (max-width: 480px) {
-  .card {
-    padding: 16px;
+@media (max-width: 650px) {
+  .header {
+    padding: 20px;
+  }
+
+  .subtitle {
+    margin-left: 0;
+    margin-top: 10px;
+  }
+
+  .body {
+    grid-template-columns: 1fr;
+    padding: 20px;
+  }
+
+  .fieldFull {
+    grid-column: auto;
+  }
+
+  .footer {
+    padding: 16px 20px 20px;
+  }
+
+  .footerHint {
+    display: none;
   }
 }

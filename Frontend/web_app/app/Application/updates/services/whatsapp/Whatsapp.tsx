@@ -3,8 +3,7 @@
 import style from "./Whatsapp.module.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-
-import ConfigCard, { WhatsappBotConfig } from "./Settings/settings";
+import ConfigCard from "./Settings/settings";
 
 const API = "http://localhost:3001";
 
@@ -14,11 +13,6 @@ const POLL_CONNECTED = 30_000;
 const POLL_HIDDEN = 60_000;
 const QR_TTL = 16_000;
 
-/*
- * The backend (Fastify + Baileys) sends `state` on GET /whatsapp/status.
- * Real values: "not_started" | "connecting" | "qr" | "open" | "closed".
- * Anything else is treated as "closed" so the UI always ends up in a known state.
- */
 type SessionState =
   | "checking"
   | "not_started"
@@ -30,10 +24,10 @@ type SessionState =
 type StatusData = { state?: string; whatsappNumber?: string | null };
 
 const STATUS_LABELS: Record<SessionState, string> = {
-  checking: "Checking…",
+  checking: "Checking",
   not_started: "Not connected",
-  connecting: "Connecting…",
-  qr: "Scan the QR code",
+  connecting: "Connecting",
+  qr: "Scan QR code",
   open: "Connected",
   closed: "Disconnected",
 };
@@ -65,6 +59,10 @@ async function readErrorMessage(res: Response, fallback: string) {
   return body?.message ?? fallback;
 }
 
+function StatusDot({ state }: { state: SessionState }) {
+  return <span className={`${style.dot} ${style[`dot_${state}`]}`} />;
+}
+
 export default function Whatsapp() {
   const [status, setStatus] = useState<SessionState>("checking");
   const [whatsappNumber, setWhatsappNumber] = useState<string | null>(null);
@@ -73,21 +71,23 @@ export default function Whatsapp() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [settingscard, setstngcard] = useState(false);
 
-  // Renamed from settingscard/setstngcard — same idea (is the settings panel
-  // open or not), just spelled properly so it doesn't look like a typo later.
-  const [showSettings, setShowSettings] = useState(false);
-
-  // Lets the logout handler kick the poll loop without waiting for the next tick.
   const forceRefreshRef = useRef<() => void>(() => {});
-
-  // Used inside the silent QR refresh to decide whether a failure is worth showing.
   const qrRef = useRef<string | null>(null);
+
   useEffect(() => {
     qrRef.current = qr;
   }, [qr]);
 
-  /* ------------------------------------------------------------------ API -- */
+  useEffect(() => {
+    if (!settingscard) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [settingscard]);
 
   const fetchStatus = useCallback(async (): Promise<StatusData> => {
     const res = await fetch(`${API}/whatsapp/status`, {
@@ -102,15 +102,18 @@ export default function Whatsapp() {
       setQrBusy(true);
       setActionError(null);
     }
+
     try {
       const res = await fetch(`${API}/whatsapp/qr`, {
         credentials: "include",
       });
+
       if (!res.ok) {
         throw new Error(
           await readErrorMessage(res, `QR request failed (${res.status})`),
         );
       }
+
       const data = await res.json();
 
       if (data?.status === "qr" && data.qr) {
@@ -121,8 +124,6 @@ export default function Whatsapp() {
       }
     } catch (err) {
       console.error("Failed to get QR:", err);
-      // A silent background refresh may fail quietly — but if there is no QR
-      // on screen yet, the user needs to know something is wrong.
       if (!silent || !qrRef.current) {
         setActionError(friendlyError(err, "Could not load the QR code"));
       }
@@ -134,19 +135,19 @@ export default function Whatsapp() {
   const handleLogout = useCallback(async () => {
     setLoggingOut(true);
     setActionError(null);
+
     try {
       const res = await fetch(`${API}/whatsapp/logout`, {
         method: "DELETE",
         credentials: "include",
       });
+
       if (!res.ok) {
         throw new Error(
           await readErrorMessage(res, `Logout failed (${res.status})`),
         );
       }
 
-      // Clear the screen straight away so the click feels instant; the server
-      // remains the source of truth and we ask it to confirm right after.
       setQr(null);
       setWhatsappNumber(null);
       setStatus("not_started");
@@ -158,33 +159,6 @@ export default function Whatsapp() {
       setLoggingOut(false);
     }
   }, []);
-
-  // NEW: this is what was missing before — Update button on the config card
-  // used to just close the panel and throw the data away. Now it actually
-  // posts to the backend, following the exact same fetch/error pattern as
-  // the rest of this file (credentials include, readErrorMessage, friendlyError).
-  const handleConfigUpdate = useCallback(async (config: WhatsappBotConfig) => {
-    setActionError(null);
-    try {
-      const res = await fetch(`${API}/whatsapp/config`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
-      });
-      if (!res.ok) {
-        throw new Error(
-          await readErrorMessage(res, `Saving settings failed (${res.status})`),
-        );
-      }
-      setShowSettings(false);
-    } catch (err) {
-      console.error("Failed to save settings:", err);
-      setActionError(friendlyError(err, "Could not save settings"));
-    }
-  }, []);
-
-  /* --------------------------------------------------- status polling loop -- */
 
   useEffect(() => {
     let cancelled = false;
@@ -212,6 +186,7 @@ export default function Whatsapp() {
           friendlyError(err, "Lost connection to the server."),
         );
       }
+
       if (cancelled) return;
 
       const base =
@@ -246,11 +221,6 @@ export default function Whatsapp() {
     };
   }, [fetchStatus]);
 
-  /* -------------------------------------------------- keep the QR up to date */
-
-  // While the backend is showing a QR, refresh it every QR_TTL ms. WhatsApp QR
-  // codes are short-lived; leaving a stale one on screen is worse than none.
-  // Self-scheduling so a failed fetch is retried on the next tick.
   useEffect(() => {
     if (status !== "qr") return;
 
@@ -271,44 +241,39 @@ export default function Whatsapp() {
     };
   }, [status, fetchQr]);
 
-  // Drop the QR as soon as we are no longer waiting for a scan.
-  useEffect(() => {
-    if (status !== "qr" && status !== "connecting") setQr(null);
-  }, [status]);
-
-  /* ------------------------------------------------------------- derived --- */
-
   const isConnected = status === "open";
   const canConnect = status === "not_started" || status === "closed";
   const canCancel = status === "connecting" || status === "qr";
-  const statusLabel = STATUS_LABELS[status] ?? status;
+  const statusLabel = STATUS_LABELS[status];
   const showQrCard = Boolean(qr) || status === "qr";
-
-  /* -------------------------------------------------------------- render --- */
 
   return (
     <section className={style.container}>
+      <div className={style.topGlow} />
+
       <header className={style.header}>
-        <div>
-          <p className={style.eyebrow}>Connected service</p>
-          <h1 className={style.title}>WhatsApp</h1>
-          <p className={style.description}>
-            Link a WhatsApp account and manage the automation that runs through
-            this service.
-          </p>
+        <div className={style.heading}>
+          <div className={style.iconBox} aria-hidden="true">
+            <span>◔</span>
+          </div>
+          <div>
+            <div className={style.eyebrow}>CHANNEL</div>
+            <h1 className={style.title}>WhatsApp</h1>
+            <p className={style.description}>
+              Connect your WhatsApp account and control how your assistant
+              communicates with customers.
+            </p>
+          </div>
         </div>
 
-        <div className={style.actions}>
-          <span
-            className={`${style.status} ${
-              isConnected ? style.statusOpen : style.statusClosed
-            }`}
-          >
-            {statusLabel}
-          </span>
+        <div className={style.headerActions}>
+          <div className={style.statusPill}>
+            <StatusDot state={status} />
+            <span>{statusLabel}</span>
+          </div>
 
           {isConnected && whatsappNumber && (
-            <span className={style.numberBadge}>{whatsappNumber}</span>
+            <span className={style.numberPill}>{whatsappNumber}</span>
           )}
 
           {canConnect && (
@@ -318,7 +283,8 @@ export default function Whatsapp() {
               onClick={() => void fetchQr(false)}
               disabled={qrBusy}
             >
-              {qrBusy ? "Starting…" : "Connect WhatsApp"}
+              <span>{qrBusy ? "Starting…" : "Connect WhatsApp"}</span>
+              {!qrBusy && <span className={style.buttonArrow}>↗</span>}
             </button>
           )}
 
@@ -339,11 +305,6 @@ export default function Whatsapp() {
               className={`${style.button} ${style.buttonDanger}`}
               onClick={() => void handleLogout()}
               disabled={loggingOut}
-              title={
-                isConnected
-                  ? "Log out of WhatsApp"
-                  : "Cancel this connection attempt"
-              }
             >
               {loggingOut
                 ? isConnected
@@ -357,73 +318,150 @@ export default function Whatsapp() {
         </div>
       </header>
 
-      {connectionError && (
-        <p className={style.errorText} role="alert">
-          {connectionError}
-        </p>
-      )}
-
-      {actionError && (
-        <p className={style.errorText} role="alert">
-          {actionError}
-        </p>
-      )}
-
-      {showQrCard && (
-        <div className={style.qrCard}>
-          {qr ? (
-            <QRCodeSVG value={qr} size={300} level="M" marginSize={4} />
-          ) : (
-            <p className={style.cardMuted}>Loading QR code…</p>
-          )}
+      {(connectionError || actionError) && (
+        <div className={style.alert} role="alert">
+          <span className={style.alertIcon}>!</span>
+          <span>{connectionError || actionError}</span>
         </div>
       )}
 
-      <div className={style.grid}>
-        <article className={style.card}>
-          <span className={style.cardLabel}>Account</span>
-          <p className={style.cardValue}>
-            {whatsappNumber
-              ? `Connected: ${whatsappNumber}`
-              : "No WhatsApp account connected"}
-          </p>
-          <p className={style.cardMuted}>
-            Your account list can be added here later.
-          </p>
-        </article>
+      {showQrCard ? (
+        <section className={style.connectPanel}>
+          <div className={style.qrSide}>
+            <div className={style.qrFrame}>
+              {qr ? (
+                <QRCodeSVG
+                  value={qr}
+                  size={270}
+                  level="M"
+                  marginSize={3}
+                  bgColor="transparent"
+                  fgColor="currentColor"
+                />
+              ) : (
+                <div className={style.qrLoading}>
+                  <span className={style.spinner} />
+                  <span>Preparing QR…</span>
+                </div>
+              )}
+            </div>
+          </div>
 
-        <article className={style.card}>
-          <span className={style.cardLabel}>Settings</span>
-
-          {/* There used to be two identical buttons here (copy-paste leftover)
-              — only one does anything useful, so the duplicate is gone. */}
-          <button
-            type="button"
-            className={style.g3hr8hehf}
-            onClick={() => setShowSettings(true)}
-          >
-            <p className={style.cardValue}>Automation settings</p>
-            <p className={style.cardMuted}>
-              This is where your future WhatsApp controls can live.
+          <div className={style.connectCopy}>
+            <span className={style.sectionKicker}>SECURE CONNECTION</span>
+            <h2>Link your WhatsApp</h2>
+            <p>
+              Open WhatsApp on your phone, go to <strong>Linked devices</strong>
+              , then scan this QR code.
             </p>
-          </button>
-        </article>
+
+            <div className={style.steps}>
+              <div className={style.step}>
+                <span>01</span>
+                <p>Open WhatsApp on your phone.</p>
+              </div>
+              <div className={style.step}>
+                <span>02</span>
+                <p>Choose Linked devices → Link a device.</p>
+              </div>
+              <div className={style.step}>
+                <span>03</span>
+                <p>Scan the QR shown here.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <section className={style.heroCard}>
+          <div>
+            <span className={style.sectionKicker}>WHATSAPP CHANNEL</span>
+            <h2>{isConnected ? "Your assistant is live." : "Ready to connect."}</h2>
+            <p>
+              {isConnected
+                ? "Your WhatsApp session is active. Configure the assistant behavior from settings."
+                : "Connect a WhatsApp account to start using your assistant."}
+            </p>
+          </div>
+
+          <div className={`${style.bigStatus} ${isConnected ? style.bigStatusLive : ""}`}>
+            <StatusDot state={status} />
+            <div>
+              <strong>{isConnected ? "Live" : statusLabel}</strong>
+              <span>{whatsappNumber || "No account linked"}</span>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <div className={style.sectionHeader}>
+        <div>
+          <span className={style.sectionKicker}>WORKSPACE</span>
+          <h2>Manage your assistant</h2>
+        </div>
+        <span className={style.sectionHint}>2 controls available</span>
       </div>
 
-      {/* Settings overlay — only exists in the DOM while showSettings is true.
-          Before, this whole block (including the close button) was always
-          rendered, sitting at the bottom of the page even when "closed". */}
-      {showSettings && (
-        <div className={style.settingCard}>
-          <div className={style.settingCardPanel}>
-            <button
-              type="button"
-              className={style.settingCardClose}
-              onClick={() => setShowSettings(false)}
-            >
-              Close
-            </button>
-            <ConfigCard onUpdate={handleConfigUpdate} />
+      <div className={style.grid}>
+        <button
+          type="button"
+          className={`${style.card} ${style.cardInteractive}`}
+          onClick={() => setstngcard(true)}
+        >
+          <div className={`${style.cardIcon} ${style.cardIconAccent}`}>✦</div>
+          <div className={style.cardContent}>
+            <div className={style.cardTop}>
+              <span className={style.cardLabel}>AUTOMATION</span>
+              <span className={style.cardChevron}>↗</span>
+            </div>
+            <h3>Assistant behavior</h3>
+            <p>
+              Set language, role, memory, rules, response style and the main
+              task for your WhatsApp assistant.
+            </p>
+          </div>
+        </button>
+
+        <button type="button" className={`${style.card} ${style.cardInteractive}`}>
+          <div className={style.cardIcon}>⌁</div>
+          <div className={style.cardContent}>
+            <div className={style.cardTop}>
+              <span className={style.cardLabel}>AUTOMATION</span>
+              <span className={style.cardChevron}>↗</span>
+            </div>
+            <h3>Automation settings</h3>
+            <p>
+              A space for future controls such as replies, limits, schedules
+              and other WhatsApp automations.
+            </p>
+          </div>
+        </button>
+      </div>
+
+      <div className={style.footerNote}>
+        <span className={style.footerDot} />
+        <span>Session status updates automatically</span>
+      </div>
+
+      {settingscard && (
+        <div
+          className={style.modalBackdrop}
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setstngcard(false);
+          }}
+        >
+          <div
+            className={style.modal}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Automation settings"
+          >
+            <ConfigCard
+              onUpdate={(config) => {
+                console.log("save config:", config);
+              }}
+              onClose={() => setstngcard(false)}
+            />
           </div>
         </div>
       )}
