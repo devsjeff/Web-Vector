@@ -1,4 +1,4 @@
-from sqlalchemy import String, select
+from sqlalchemy import String, select, text
 from sqlalchemy.orm import mapped_column, Mapped, DeclarativeBase
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
@@ -30,6 +30,7 @@ class DatabaseSchema(Base):
 async def init_db() -> None:
     """Run once at startup to create tables."""
     async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
 
 

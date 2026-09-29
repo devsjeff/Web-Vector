@@ -12,7 +12,7 @@
 //   |-- messagesByChat   chatWithNumber -> messages waiting to be pushed
 //   `-- events           small "radio" other files can listen to ("qr", "open", "close")
 //
-//   MessageBatch  = what we push out (Kafka) after 30 messages of one chat
+//   IncomingMessage = one WhatsApp message sent to the Python worker through Kafka
 // ============================================================================
 
 import type { WASocket } from "@whiskeysockets/baileys";
@@ -46,7 +46,6 @@ export interface WhatsAppSession {
   state: SessionState;
   qr: string | null;
   whatsappNumber: string | null;
-  messagesByChat: Map<string, ChatMessage[]>;
   events: EventEmitter;
 }
 
@@ -58,11 +57,12 @@ export interface WhatsAppSession {
 // SECTION 2: BATCH TYPE (what goes to Kafka)
 // ============================================================================
 
-export interface MessageBatch {
+export interface IncomingMessage {
   email: string; // which user (owner of the WhatsApp)
-  whatsappNumber: string; // the user's own WhatsApp number
+  whatsappNumber: string | null;
   chatWithNumber: string; // the other person's number
-  messages: ChatMessage[]; // exactly 30 messages of this one chat
+  messageId: string;
+  message: string;
 }
 
 

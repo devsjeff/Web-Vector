@@ -10,18 +10,22 @@ import cookie from "@fastify/cookie";
 
 import {env} from "../CommonENV.ts"
 import {WhatsappRoutes} from "./Routes/Whatsapp/whatsappRoutes.ts"
+import { startKafka, stopKafka } from "../Kafka/baileys_kafka.ts";
+import { sendWhatsAppMessage } from "../Baileys/CreateSession.ts";
 
 const app = Fastify({logger:true , trustProxy:true , bodyLimit:1_048_576})
 
 
 async function main (){
+  await startKafka(async ({ email, chatWithNumber, reply }) => {
+    await sendWhatsAppMessage(email, chatWithNumber, reply);
+  });
+  app.addHook("onClose", stopKafka);
+
     await app.register(helmet, {global:true}) ;
     await app.register(cookie);
  await app.register(cors, {
-  origin: [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-  ],
+  origin: env.FASTIFY_CORS_HOST_ORIGIN.split(",").map((origin) => origin.trim()),
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 });
@@ -41,7 +45,7 @@ async function main (){
         }); 
             });
    
-   await app.listen({port: Number(env.FASTIFY_PORT),host: "0.0.0.0"});
+  await app.listen({port: Number(env.FASTIFY_PORT),host: "0.0.0.0"});
 
 
 }

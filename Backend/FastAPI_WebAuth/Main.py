@@ -10,15 +10,13 @@ from FastAPI_WebAuth.Routes.web.Web_routes import WEBrouter
 from FastAPI_WebAuth.Routes.app_routes.Whatsapp_configs import APP_ROUTER
 
 from FastAPI_WebAuth.db.web_db import init_db
+from FastAPI_WebAuth.db.App import init_app_db
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    try:
-        await init_db()
-    except Exception as e:
-        # Don't crash startup if DB is not ready yet; log and continue
-        print(f"[startup] init_db skipped/failed: {e}")
+    await init_db()
+    await init_app_db()
     yield
 
 

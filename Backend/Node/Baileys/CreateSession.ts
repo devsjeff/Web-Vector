@@ -20,7 +20,8 @@
 import makeWASocket, { DisconnectReason, type AuthenticationState, type WAMessage, type WASocket } from "@whiskeysockets/baileys";
 import { EventEmitter } from "node:events";
 import { loadAuthState, saveCredentials, deleteAuthState } from "../Mongo/mongoBaileysSession.ts";
-import type { ChatMessage, MessageBatch, WhatsAppSession } from "./BaileysTypes.ts";
+import { publishIncomingMessage } from "../Kafka/baileys_kafka.ts";
+import type { ChatMessage, WhatsAppSession } from "./BaileysTypes.ts";
 
 
 
@@ -29,9 +30,6 @@ import type { ChatMessage, MessageBatch, WhatsAppSession } from "./BaileysTypes.
 // ============================================================================
 // SECTION 1: SETTINGS
 // ============================================================================
-
-// How many messages of ONE chat we collect before pushing them out.
-const MESSAGE_BATCH_SIZE = 30;
 
 // How long we wait for a QR code before giving up.
 const QR_TIMEOUT_MS = 30_000;
@@ -132,78 +130,7 @@ function convertMessage(baileysMessage: WAMessage): ConvertedMessage | null {
 
 
 // ============================================================================
-// SECTION 4: MESSAGE BUFFER
-// Every incoming message is saved in a variable (session.messagesByChat), one list per chat.
-//
-//   messagesByChat
-//   |-- "919999999999" -> [ msg1, msg2, msg3, ... ]   (person A has their own list)
-//   `-- "918888888888" -> [ msg1, msg2, ... ]         (person B has their own list)
-// ============================================================================
-
-function saveMessageInBuffer(session: WhatsAppSession, chatWithNumber: string, message: ChatMessage) {
-  // Find the list of this chat. If it does not exist yet, create an empty one.
-  let chatMessages = session.messagesByChat.get(chatWithNumber);
-
-  if (!chatMessages) {
-    chatMessages = [];
-    session.messagesByChat.set(chatWithNumber, chatMessages);
-  }
-
-  chatMessages.push(message);
-}
-
-
-
-
-
-// ============================================================================
-// SECTION 5: PUSH 30 MESSAGES
-// When ONE chat has 30 messages -> take them out of memory -> push them out.
-// To connect Kafka later, you only edit sendBatchToKafka() below.
-// ============================================================================
-
-// 5A. Check the chat. If it has 30 messages, build a batch and push it.
-async function pushBatchIfReady(session: WhatsAppSession, chatWithNumber: string) {
-  const chatMessages = session.messagesByChat.get(chatWithNumber);
-  const { email, whatsappNumber } = session;
-
-  // No list yet, or fewer than 30 messages -> nothing to do.
-  if (!chatMessages || chatMessages.length < MESSAGE_BATCH_SIZE) return;
-
-  // We need our own number for the batch. If it is not known yet, keep the messages and try later.
-  if (!whatsappNumber) return;
-
-  // Take exactly 30 messages OUT of the list (they are removed from memory here).
-  const batchMessages = chatMessages.splice(0, MESSAGE_BATCH_SIZE);
-  const batch: MessageBatch = { email, whatsappNumber, chatWithNumber, messages: batchMessages };
-
-  try {
-    await sendBatchToKafka(batch);
-  } catch (error) {
-    // Push failed -> put the messages back at the front so NOTHING is lost. The next message tries again.
-    chatMessages.unshift(...batchMessages);
-    console.error("Could not push batch, will retry on the next message:", error);
-  }
-}
-
-
-// 5B. The place where your Kafka code goes later.
-async function sendBatchToKafka(batch: MessageBatch) {
-  // TODO: replace the console.log below with your Kafka producer, for example:
-  //   await producer.send({ topic: "whatsapp-messages", messages: [{ key: batch.email, value: JSON.stringify(batch) }] });
-  //
-  // If this function throws an error, the 30 messages go back into memory and are retried later.
-  console.log("\n===== KAFKA BATCH =====");
-  console.log(JSON.stringify(batch, null, 2));
-  console.log("=======================\n");
-}
-
-
-
-
-
-// ============================================================================
-// SECTION 6: SOCKET EVENTS
+// SECTION 4: SOCKET EVENTS
 // Baileys tells us things ("creds changed", "here is a QR", "connection closed", "new message").
 // Each thing has its own small function below.
 // ============================================================================
@@ -289,12 +216,15 @@ async function handleIncomingMessages(session: WhatsAppSession, messages: WAMess
     // Turn the big Baileys message into our small one (or skip it).
     const converted = convertMessage(baileysMessage);
     if (!converted) continue;
+    if (converted.message.fromMe) continue;
 
-    // Step 1: keep the message in memory (SECTION 4).
-    saveMessageInBuffer(session, converted.chatWithNumber, converted.message);
-
-    // Step 2: if this chat now has 30 messages, push them out (SECTION 5).
-    await pushBatchIfReady(session, converted.chatWithNumber);
+    await publishIncomingMessage({
+      email: session.email,
+      whatsappNumber: session.whatsappNumber,
+      chatWithNumber: converted.chatWithNumber,
+      messageId: converted.message.messageId,
+      message: converted.message.text,
+    });
   }
 }
 
@@ -321,7 +251,7 @@ function attachListeners(session: WhatsAppSession, socket: WASocket, authState: 
 
 
 // ============================================================================
-// SECTION 7: CREATE A SESSION + RECONNECT
+// SECTION 5: CREATE A SESSION + RECONNECT
 // ============================================================================
 
 // 7A. Build a brand new session for one user.
@@ -339,7 +269,6 @@ async function createNewSession(email: string): Promise<WhatsAppSession> {
     state: "connecting",
     qr: null,
     whatsappNumber: null,
-    messagesByChat: new Map(),
     events: new EventEmitter(),
   };
 
@@ -384,7 +313,7 @@ function scheduleReconnect(session: WhatsAppSession, authState: AuthenticationSt
 
 
 // ============================================================================
-// SECTION 8: PUBLIC FUNCTIONS (BaileysApi.ts uses these, Fastify never touches them directly)
+// SECTION 6: PUBLIC FUNCTIONS (BaileysApi.ts uses these, Fastify never touches them directly)
 // ============================================================================
 
 // 8A. Start the session for this email (or reuse the one that already exists).
@@ -446,6 +375,16 @@ export async function waitForQrCode(email: string, timeoutMs = QR_TIMEOUT_MS): P
 // 8C. Look at a session without starting one. Returns undefined if there is none.
 export function getSession(email: string) {
   return sessions.get(email);
+}
+
+
+export async function sendWhatsAppMessage(email: string, number: string, text: string) {
+  const session = sessions.get(email);
+  if (!session || session.state !== "open") {
+    throw new Error(`WhatsApp session is not connected for ${email}`);
+  }
+
+  await session.socket.sendMessage(`${number}@s.whatsapp.net`, { text });
 }
 
 

@@ -16,22 +16,34 @@ async def update_whatsapp_config(request: Request, configs: Configs_type):
     payload = Verify_decode_token(access_token)
     if not payload:
         raise HTTPException(status_code=401, detail="Not logged in")
-    if configs.role_identity is None:
+    if not configs.roleIdentity.mode:
         raise HTTPException(status_code=422, detail="Role identity is required")
+    if not configs.task.strip():
+        raise HTTPException(status_code=422, detail="Task is required")
 
-    rules_instructions = configs.rules_instructions or ""
-    response_style = configs.response_Style or ""
-    task = configs.task or ""
+    def configured_value(field):
+        return field.customText.strip() if field.mode == "custom" else field.mode
+
+    fields = (
+        configs.language,
+        configs.roleIdentity,
+        configs.memoryContext,
+        configs.rulesInstructions,
+        configs.responseStyle,
+    )
+    if any(not field.mode.strip() for field in fields):
+        raise HTTPException(status_code=422, detail="All assistant settings are required")
+    if any(field.mode == "custom" and not field.customText.strip() for field in fields):
+        raise HTTPException(status_code=422, detail="Custom settings cannot be empty")
 
     ok = await UserWtsAcc_Write(
-        user_id_=payload["user_id"],
-        WtAcc_=configs.wtAcc,
-        email_=payload["email"],
-        Role_identity_=configs.role_identity,
-        Memory_Context_=configs.memory_Context or "",
-        Rules_instructions_=rules_instructions,
-        Response_Style_=response_style,
-        Task_=task,
+        email_=payload["sub"],
+        Language_=configured_value(configs.language),
+        Role_identity_=configured_value(configs.roleIdentity),
+        Memory_Context_=configured_value(configs.memoryContext),
+        Rules_instructions_=configured_value(configs.rulesInstructions),
+        Response_Style_=configured_value(configs.responseStyle),
+        Task_=configs.task.strip(),
     )
     if not ok:
         raise HTTPException(status_code=400, detail="Could not save config")

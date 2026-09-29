@@ -1,41 +1,70 @@
-const express = require("express");
-const { Kafka } = require("kafkajs");
+import { Kafka } from "kafkajs";
+import { env } from "../CommonENV.ts";
+import type { IncomingMessage } from "../Baileys/BaileysTypes.ts";
 
-const app = express();
-app.use(express.json());
-
-const kafka = new Kafka({ brokers: ["localhost:9092"] });
-const producer = kafka.producer();
-const consumer = kafka.consumer({ groupId: "node" });
-
-// WhatsApp webhook → Kafka
-app.post("/webhook", async (req, res) => {
-  const { from, text, email } = req.body;
-
-  await producer.send({
-    topic: "incoming",
-    messages: [{
-      value: JSON.stringify({ email, number: from, message: text }),
-    }],
-  });
-
-  res.sendStatus(200);
-});
-
-async function start() {
-  await producer.connect();
-  await consumer.connect();
-  await consumer.subscribe({ topic: "outgoing" });
-
-  await consumer.run({
-    eachMessage: async ({ message }) => {
-      const { number, reply } = JSON.parse(message.value.toString());
-      console.log(`→ ${number}: ${reply}`);
-      // sendWhatsApp(number, reply)  ← plug your WhatsApp API here
-    },
-  });
-
-  app.listen(3000, () => console.log("node :3000"));
+export interface OutgoingMessage {
+  email: string;
+  chatWithNumber: string;
+  messageId: string;
+  reply: string;
 }
 
-start();
+const kafka = new Kafka({
+  clientId: env.KAFKA_CLIENT_ID,
+  brokers: env.KAFKA_BROKERS.split(",").map((broker) => broker.trim()),
+});
+const producer = kafka.producer();
+const consumer = kafka.consumer({ groupId: `${env.KAFKA_GROUP_ID}-whatsapp-node` });
+
+export async function publishIncomingMessage(message: IncomingMessage) {
+  await producer.send({
+    topic: env.KAFKA_TOPIC_INCOMING,
+    messages: [{
+      key: message.messageId,
+      value: JSON.stringify(message),
+    }],
+  });
+}
+
+export async function startKafka(onOutgoingMessage: (message: OutgoingMessage) => Promise<void>) {
+  const admin = kafka.admin();
+  await admin.connect();
+  try {
+    await admin.createTopics({
+      topics: [env.KAFKA_TOPIC_INCOMING, env.KAFKA_TOPIC_OUTGOING].map((topic) => ({
+        topic,
+        numPartitions: 1,
+        replicationFactor: 1,
+      })),
+      waitForLeaders: true,
+    });
+  } finally {
+    await admin.disconnect();
+  }
+
+  await producer.connect();
+  await consumer.connect();
+  await consumer.subscribe({ topic: env.KAFKA_TOPIC_OUTGOING });
+  await consumer.run({
+    eachMessage: async ({ message }) => {
+      if (!message.value) return;
+
+      const outgoing = JSON.parse(message.value.toString()) as OutgoingMessage;
+      if (
+        !outgoing.email ||
+        !outgoing.chatWithNumber ||
+        !outgoing.messageId ||
+        typeof outgoing.reply !== "string" ||
+        !outgoing.reply.trim()
+      ) {
+        throw new Error("Received an invalid WhatsApp reply from Kafka");
+      }
+
+      await onOutgoingMessage(outgoing);
+    },
+  });
+}
+
+export async function stopKafka() {
+  await Promise.all([consumer.disconnect(), producer.disconnect()]);
+}
