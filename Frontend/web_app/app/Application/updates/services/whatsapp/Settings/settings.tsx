@@ -85,13 +85,31 @@ const RULES_OPTIONS: Option[] = [
 ];
 
 const STYLE_OPTIONS: Option[] = [
-  { value: "default", label: "Default" },
-  { value: "friendly", label: "Nice / friendly" },
-  { value: "sarcastic", label: "Sarcastic" },
-  { value: "neutral", label: "Neutral / mid" },
-  { value: "cool", label: "Cool" },
-  { value: "custom", label: "Custom..." },
+  { value: "default", label: "Clear & Polite (Default)" },
+  { value: "friendly", label: "Warm & Friendly (Supportive)" },
+  { value: "sarcastic", label: "Sarcastic & Witty Banter (Playful sarcasm)" },
+  { value: "roast", label: "Playful Roast & Teasing (Good friends vibe)" },
+  { value: "witty", label: "Witty & Smart Wordplay" },
+  { value: "boss", label: "Executive & Respectful (Boss Mode)" },
+  { value: "love", label: "Affectionate & Sweet (Love Mode)" },
+  { value: "neutral", label: "Neutral & Concise" },
+  { value: "cool", label: "Cool & Casual" },
+  { value: "formal", label: "Formal & Corporate" },
+  { value: "custom", label: "Custom Tone & Rules..." },
 ];
+
+const STYLE_DESCRIPTIONS: Record<string, string> = {
+  default: "Standard clear, polite and to the point replies.",
+  friendly: "Warm, supportive and encouraging with friendly emojis.",
+  sarcastic: "Sharp, witty sarcasm and clever banter without being hurtful.",
+  roast: "Playful roasting and teasing comebacks like close friends bantering.",
+  witty: "Quick-witted smart wordplay, clever jokes, and sharp humor.",
+  boss: "Executive, structured, deferential, highly respectful and concise.",
+  love: "Deeply affectionate, warm, caring and gentle partner-level tone.",
+  neutral: "Corporate neutral, factual, zero slang or emojis.",
+  cool: "Casual, relaxed, short confident sentences.",
+  formal: "Polite, structured, formal corporate business decorum.",
+};
 
 const emptyField = (mode: string): FieldState => ({ mode, customText: "" });
 
@@ -318,6 +336,10 @@ function ConfigField({
           </option>
         ))}
       </select>
+
+      {!isCustom && label === "Response style" && STYLE_DESCRIPTIONS[value.mode] && (
+        <span className={styles.hintBadge}>✨ {STYLE_DESCRIPTIONS[value.mode]}</span>
+      )}
 
       {isCustom && (
         <input

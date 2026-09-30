@@ -56,21 +56,29 @@ Web-Vector turns conversational channels (WhatsApp, Webhooks, APIs) into an auto
 - **Auto-Commit**: Each completed interaction turn is automatically indexed into PostgreSQL via `pgvector`.
 - **Manual Fact Storing**: Add custom facts or notes directly from the dashboard to seed knowledge.
 
-### 2. Dynamic Per-Contact Personas & Tones (Sarcasm, Banter, etc.)
+### 2. Dynamic Per-Contact Personas & Tones (Sarcasm, Banter, Boss, Love)
 - **Per-Contact Overrides**: Configure specific speaking tones per contact number:
   - 🎭 **Sarcastic**: Sharp, witty dry humor and playful banter.
   - 🔥 **Playful Roast**: Friendly teasing and humorous comebacks.
   - ⚡ **Witty**: Clever wordplay and fast-thinking quips.
-  - 🤝 **Friendly**: Warm, encouraging, and supportive.
-  - 💼 **Professional**: Structured, courteous, and business-focused.
+  - 👔 **Boss / Executive**: Executive-level respect, structured promptness, and concise professional updates.
+  - ❤️ **Loved One**: Warm, deeply affectionate, sweet, caring, and gentle partner-level tone.
+  - 🤝 **Friendly**: Warm, encouraging, casual, and supportive.
+  - 💼 **Professional**: Structured, courteous, and corporate-focused.
   - 😎 **Cool**: Relaxed, casual, short confident sentences.
   - ✍️ **Custom**: Tailored prompt instructions per phone number.
+- **Dynamic Sarcasm & Banter Adaptation for Friends**:
+  - When a contact is recognized as a friend (e.g. `Rahul Friend`, `Amit Bro`, `Bestie`), the system monitors incoming messages: if the friend gets cheeky, naughty, or sarcastic, the agent dynamically mirrors their playful sarcasm and roasts back with affectionate wit!
 - **Intelligent Global Fallback**: If a contact does not have custom settings (or if the override is toggled off), the assistant automatically falls back to your global workspace settings.
 
-### 3. Contact & Chat Volume Intelligence
-- **Number Search**: Search active or new phone numbers instantly.
-- **Number of Chats Counter**: View message volume and interaction frequencies per contact.
-- **Pre-Configure Numbers**: Add and configure custom personas for contacts before they even message.
+### 3. Contact & Chat Volume Intelligence & Name Syncing
+- **Number Search & Scrollable View**: Switch between Card Grid and Dense Scrollable List views with phone numbers prominently displayed.
+- **Real-time Global vs Custom Indicators**: Clear `[🌐 Global Settings Active]` vs `[⚡ Custom: Sarcastic]` badges on every contact.
+- **Contact Name Sync & Relationship Sensing**:
+  - Click `✏️ Sync Name` to sync or update display names (`POST /App/contact_name`).
+  - Real-time relationship detection automatically identifies Boss, Loved One, Friend, or Standard contacts and guides agent tone.
+- **Number of Chats Counter**: View message counts and interaction frequencies per contact (`chatCount`).
+- **Bulk Custom Reset**: Delete all custom overrides in one click to revert all contacts to global defaults.
 
 ### 4. WhatsApp Automation Hub
 - **Baileys Web Socket Engine**: Connect via QR scan (WhatsApp -> Linked devices).
@@ -161,9 +169,12 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ### Contacts & Chat Personas
 - `GET /App/contacts?query=`: Returns contacts, number of chats, memory counts, and custom tone status.
+- `GET /App/contact_configs`: Returns all contacts that currently have custom persona configurations set.
 - `GET /App/contact_config?number={phone}`: Returns custom configuration for a specific contact.
 - `POST /App/contact_config`: Save custom speaking style (e.g. sarcastic), custom task, and notes for a contact.
-- `DELETE /App/contact_config?number={phone}`: Remove contact override and revert to global settings.
+- `DELETE /App/contact_config?number={phone}`: Remove contact override and revert to global settings (or pass `number=all`).
+- `DELETE /App/contact_configs/all`: Delete custom settings for all contacts at once, reverting everyone to global settings.
+
 
 ### PgVector Memories
 - `GET /App/memories?number={phone}&query={search}`: Semantic vector search or list memories.

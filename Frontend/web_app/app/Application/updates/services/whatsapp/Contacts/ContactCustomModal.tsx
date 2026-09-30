@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import styles from "./ContactCustomModal.module.css";
 
+import { detectRelationship } from "./ContactManager";
+
 interface ContactCustomModalProps {
   whatsappNumber: string;
   initialContactName?: string;
@@ -20,7 +22,9 @@ const TONES = [
   { id: "sarcastic", icon: "🎭", title: "Sarcastic", desc: "Dry humor, witty banter, and playful sarcasm" },
   { id: "roast", icon: "🔥", title: "Playful Roast", desc: "Friendly roasts, comebacks, and heavy teasing" },
   { id: "witty", icon: "⚡", title: "Witty", desc: "Quick-witted smart banter and clever remarks" },
-  { id: "friendly", icon: "🤝", title: "Friendly", desc: "Warm, supportive, kind and helpful" },
+  { id: "boss", icon: "👔", title: "Boss / Executive", desc: "Utmost respect, prompt, structured executive updates" },
+  { id: "love", icon: "❤️", title: "Loved One", desc: "Deeply affectionate, warm, caring and gentle tone" },
+  { id: "friendly", icon: "🤝", title: "Friendly", desc: "Warm, casual, kind and helpful friend" },
   { id: "cool", icon: "😎", title: "Cool", desc: "Relaxed, casual, short confident answers" },
   { id: "formal", icon: "💼", title: "Professional", desc: "Polite, structured, corporate style" },
 ];
@@ -252,14 +256,61 @@ export default function ContactCustomModal({
               {enabled && (
                 <>
                   <div className={styles.field}>
-                    <label className={styles.label}>Contact Name (Optional)</label>
+                    <label className={styles.label}>Contact Name (Used for Intelligent Relationship Sensing)</label>
                     <input
                       type="text"
                       className={styles.input}
                       value={contactName}
                       onChange={(e) => setContactName(e.target.value)}
-                      placeholder="e.g. Vikram Sharma, Best Friend, Client"
+                      placeholder="e.g. Rahul Friend, Boss Sharma, My Love ❤️, Client Alex"
                     />
+                    {contactName.trim() && (() => {
+                      const rel = detectRelationship(contactName);
+                      return (
+                        <div style={{
+                          marginTop: "8px",
+                          padding: "10px 14px",
+                          borderRadius: "10px",
+                          background: "rgba(0, 0, 0, 0.35)",
+                          border: "1px solid rgba(255, 255, 255, 0.1)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "4px"
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 700, color: "#e8ddcf", fontSize: "0.85rem" }}>
+                              <span>{rel.icon}</span>
+                              <span>Auto-Detected: {rel.label}</span>
+                            </div>
+                            {rel.category !== "normal" && toneStyle !== rel.category && (
+                              <button
+                                type="button"
+                                style={{
+                                  background: "rgba(232, 221, 207, 0.15)",
+                                  border: "1px solid rgba(232, 221, 207, 0.3)",
+                                  color: "#e8ddcf",
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  fontSize: "0.72rem",
+                                  cursor: "pointer"
+                                }}
+                                onClick={() => setToneStyle(rel.category === "friend" ? "sarcastic" : rel.category)}
+                              >
+                                Match Persona Tone
+                              </button>
+                            )}
+                          </div>
+                          <p style={{ margin: 0, fontSize: "0.78rem", color: "#94a3b8", lineHeight: 1.45 }}>
+                            {rel.desc}
+                          </p>
+                          {rel.category === "friend" && (
+                            <p style={{ margin: "4px 0 0", fontSize: "0.76rem", color: "#86efac" }}>
+                              ✨ <strong>Dynamic Sarcasm:</strong> If your friend starts teasing or sending sarcastic banter, the assistant will automatically match their vibe and roast them back!
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className={styles.field}>

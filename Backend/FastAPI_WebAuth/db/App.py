@@ -11,6 +11,7 @@ from sqlalchemy import (
     func,
     select,
     delete,
+    update,
     desc,
 )
 from sqlalchemy.dialects.postgresql import JSONB, insert as pg_insert
@@ -18,6 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from FastAPI_WebAuth.db.web_db import AsyncSessionLocal, Base
 from FastAPI_WebAuth.AI_AI_AI_AI_AI_AI.embeddings import cosine_similarity
+from FastAPI_WebAuth.AI_AI_AI_AI_AI_AI.prompt_builder import detect_contact_relationship
 
 Async_session = AsyncSessionLocal
 
@@ -298,6 +300,21 @@ async def Delete_ContactConfig(email: str, whatsapp_number: str) -> bool:
         return False
 
 
+async def Delete_AllContactConfigs(email: str) -> int:
+    """Deletes all custom contact configs for this user so all contacts revert to global settings."""
+    try:
+        async with Async_session() as session:
+            result = await session.execute(
+                delete(ContactConfig).where(ContactConfig.email == email)
+            )
+            await session.commit()
+            return result.rowcount or 0
+    except Exception as e:
+        print(f"[db] Delete_AllContactConfigs failed: {e}")
+        return 0
+
+
+
 # ============================================================================
 # Contact Chat Statistics & Number Counter
 # ============================================================================
@@ -377,9 +394,13 @@ async def List_ContactsSummary(email: str) -> list[dict]:
                 last_msg = stat.last_message if stat else ""
                 updated_at = (stat.updated_at if stat else (cfg.updated_at if cfg else None))
 
+                rel = detect_contact_relationship(contact_name)
+
                 results.append({
                     "whatsappNumber": num,
                     "contactName": contact_name,
+                    "relationship": rel["category"],
+                    "relationshipLabel": rel["detected_label"],
                     "chatCount": chat_count,
                     "memoryCount": m_count,
                     "hasCustomConfig": bool(cfg and cfg.enabled),
@@ -394,6 +415,47 @@ async def List_ContactsSummary(email: str) -> list[dict]:
     except Exception as e:
         print(f"[db] List_ContactsSummary failed: {e}")
         return []
+
+
+async def Update_ContactName(email: str, whatsapp_number: str, contact_name: str) -> bool:
+    """Updates or syncs contact name across ContactChatStat and ContactConfig."""
+    clean_number = (whatsapp_number or "").strip()
+    clean_name = (contact_name or "").strip()
+    if not clean_number:
+        return False
+
+    async with Async_session() as session:
+        try:
+            # 1. Update ContactChatStat if exists, or insert new stat entry
+            stat_stmt = pg_insert(ContactChatStat).values(
+                email=email,
+                whatsapp_number=clean_number,
+                contact_name=clean_name,
+                chat_count=0,
+                last_message="",
+            )
+            stat_stmt = stat_stmt.on_conflict_do_update(
+                index_elements=[ContactChatStat.email, ContactChatStat.whatsapp_number],
+                set_={
+                    "contact_name": clean_name,
+                    "updated_at": func.now(),
+                },
+            )
+            await session.execute(stat_stmt)
+
+            # 2. Update ContactConfig if exists
+            await session.execute(
+                update(ContactConfig)
+                .where(ContactConfig.email == email, ContactConfig.whatsapp_number == clean_number)
+                .values(contact_name=clean_name, updated_at=func.now())
+            )
+
+            await session.commit()
+            return True
+        except Exception as e:
+            await session.rollback()
+            print(f"[db] Update_ContactName failed: {e}")
+            return False
 
 
 # ============================================================================

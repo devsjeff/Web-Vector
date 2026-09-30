@@ -6,6 +6,7 @@ from FastAPI_WebAuth.Routes.Types_pydantic import (
     Configs_type,
     ContactConfigType,
     MemoryCreateType,
+    ContactNameSyncType,
 )
 from FastAPI_WebAuth.db.App import (
     Save_WhatsappConfig,
@@ -13,7 +14,10 @@ from FastAPI_WebAuth.db.App import (
     Save_ContactConfig,
     Read_ContactConfig,
     Delete_ContactConfig,
+    Delete_AllContactConfigs,
+    List_ContactConfigs,
     List_ContactsSummary,
+    Update_ContactName,
     Save_ChatMemory,
     Search_ChatMemories,
     List_ChatMemories,
@@ -21,6 +25,7 @@ from FastAPI_WebAuth.db.App import (
 )
 from FastAPI_WebAuth.db.web_db import get_user_by_email
 from FastAPI_WebAuth.AI_AI_AI_AI_AI_AI.embeddings import generate_embedding
+from FastAPI_WebAuth.AI_AI_AI_AI_AI_AI.prompt_builder import detect_contact_relationship
 
 APP_ROUTER = APIRouter()
 
@@ -135,10 +140,66 @@ async def update_contact_config(request: Request, payload: ContactConfigType):
 async def delete_contact_config(request: Request, number: str = Query(...)):
     """
     Deletes custom overrides for a WhatsApp number so it reverts to global settings.
+    If number='all', deletes all custom configurations for the user.
     """
     email = _email_from_cookie(request)
+    if number.strip().lower() == "all":
+        count = await Delete_AllContactConfigs(email)
+        return {"status": "all_reverted_to_global", "deletedCount": count, "success": True}
+
     ok = await Delete_ContactConfig(email, number)
     return {"status": "reverted_to_global", "whatsappNumber": number, "success": ok}
+
+
+@APP_ROUTER.get("/App/contact_configs")
+@limiter.limit("60/min")
+async def list_contact_configs(request: Request):
+    """
+    Returns all custom contact configurations created by this user.
+    """
+    email = _email_from_cookie(request)
+    configs = await List_ContactConfigs(email)
+    return {"configs": configs, "total": len(configs)}
+
+
+@APP_ROUTER.delete("/App/contact_configs/all")
+@limiter.limit("20/min")
+async def delete_all_contact_configs(request: Request):
+    """
+    Deletes all custom persona configurations for this user, reverting all contacts to global settings.
+    """
+    email = _email_from_cookie(request)
+    count = await Delete_AllContactConfigs(email)
+    return {
+        "status": "all_reverted_to_global",
+        "deletedCount": count,
+        "message": f"Successfully reverted {count} contacts to global settings.",
+    }
+
+
+@APP_ROUTER.post("/App/contact_name")
+@limiter.limit("45/min")
+async def sync_contact_name(request: Request, payload: ContactNameSyncType):
+    """
+    Syncs or updates a contact's display name.
+    Automatically detects relationship role (boss, love, friend, normal) and
+    updates both chat stats and custom persona config.
+    """
+    email = _email_from_cookie(request)
+    ok = await Update_ContactName(email, payload.whatsappNumber, payload.contactName)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Could not update contact name")
+
+    rel = detect_contact_relationship(payload.contactName)
+    return {
+        "status": "synced",
+        "whatsappNumber": payload.whatsappNumber,
+        "contactName": payload.contactName,
+        "relationship": rel["category"],
+        "relationshipLabel": rel["detected_label"],
+        "success": True,
+    }
+
 
 
 # ============================================================================

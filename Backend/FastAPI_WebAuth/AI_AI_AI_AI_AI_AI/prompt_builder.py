@@ -34,6 +34,8 @@ MEMORY_PRESETS = {
     ),
 }
 
+import re
+
 STYLE_PRESETS = {
     "default": "Clear, polite and to the point.",
     "friendly": "Warm, friendly and encouraging. A light emoji now and then is fine.",
@@ -43,6 +45,8 @@ STYLE_PRESETS = {
     "neutral": "Neutral and professional. No slang, no emojis.",
     "cool": "Relaxed, casual and confident, like a cool friend. Short sentences.",
     "formal": "Polite, courteous, highly structured and professional.",
+    "boss": "Executive, highly respectful, prompt, concise, and professional. Treat like an esteemed boss or supervisor with crisp structured updates.",
+    "love": "Warm, deeply affectionate, loving, sweet, and caring. Speak gently and attentively like to a beloved partner or spouse.",
 }
 
 DEFAULT_ASSISTANT_CONFIG = {
@@ -92,6 +96,89 @@ def resolve_field(field: dict | None, presets: dict[str, str], default_key: str)
     return presets.get(default_key, "")
 
 
+def detect_contact_relationship(contact_name: str | None) -> dict:
+    """
+    Analyzes contact name to identify relationship role:
+    - boss: manager, sir, supervisor, director, lead, tl, ceo, cto, client, head, etc.
+    - love: love, sweetheart, darling, honey, babe, baby, jaan, shona, wife, wifey, hubby, husband, fiance, etc. or love emojis.
+    - friend: friend, frnd, yaar, dost, bro, brother, buddy, pal, bestie, bff, homie, dude, mate, etc.
+    - normal: standard/acquaintance contact.
+    """
+    name = (contact_name or "").strip()
+    if not name:
+        return {
+            "category": "normal",
+            "detected_label": "Standard Contact",
+            "prompt_instruction": "The contact is an acquaintance or regular contact. Maintain a polite, natural, friendly, and helpful standard tone.",
+            "dynamic_adaptation": "Answer questions politely, clearly, and concisely.",
+        }
+
+    lower = name.lower()
+
+    # 1. Boss / Executive
+    boss_pattern = r"\b(boss|sir|manager|director|supervisor|lead|tl|ceo|cto|cfo|cmo|founder|client|head|prof|professor)\b"
+    if re.search(boss_pattern, lower):
+        return {
+            "category": "boss",
+            "detected_label": "Boss / Executive",
+            "prompt_instruction": (
+                "The contact is recognized as the user's BOSS, MANAGER, or SENIOR SUPERIOR. "
+                "Always treat them with the utmost professional respect, promptness, and efficiency. "
+                "Be structured, crisp, executive-ready, and proactive. Avoid informal slang, flippancy, or excuses. "
+                "Acknowledge instructions clearly and give crisp, professional status updates."
+            ),
+            "dynamic_adaptation": (
+                "Prioritize efficiency, precision, and executive courtesy in every response. "
+                "Keep answers well-structured, deferential, and direct."
+            ),
+        }
+
+    # 2. Love / Romantic / Partner
+    love_pattern = r"\b(love|my\s*love|sweetheart|darling|honey|babe|baby|jaan|shona|wife|wifey|husband|hubby|fiance|fiancee|sweetie|cutie|soulmate|jaaneman)\b|[❤️💕💖💓💗💞💘]"
+    if re.search(love_pattern, lower):
+        return {
+            "category": "love",
+            "detected_label": "Loved One / Partner",
+            "prompt_instruction": (
+                "The contact is recognized as the user's LOVED ONE, PARTNER, or SPOUSE. "
+                "Speak in an affectionate, sweet, warm, caring, and gentle tone. "
+                "Be emotionally supportive, attentive, and comforting. "
+                "Naturally include warm expressions and gentle emojis (like ❤️ or 😊) where appropriate."
+            ),
+            "dynamic_adaptation": (
+                "Maintain loving warmth, intimacy, and care throughout the conversation. "
+                "Never sound cold, bureaucratic, or detached."
+            ),
+        }
+
+    # 3. Friend / Buddy (with dynamic sarcastic banter adaptation)
+    friend_pattern = r"\b(friend|frnd|frnds|yaar|dost|bro|brother|buddy|pal|bestie|bff|homie|dude|mate|gang|chaddi\s*buddy)\b"
+    if re.search(friend_pattern, lower):
+        return {
+            "category": "friend",
+            "detected_label": "Friend / Buddy",
+            "prompt_instruction": (
+                "The contact is recognized as a CLOSE FRIEND (e.g. friend, bro, yaar, dost). "
+                "Speak casually, naturally, and warmly like a genuine friend. Do not sound stiff, robotic, or overly formal."
+            ),
+            "dynamic_adaptation": (
+                "DYNAMIC SARCASM & BANTER ADAPTATION: Pay close attention to the friend's messages. "
+                "If their messages become playful, cheeky, naughty, teasing, sarcastic, or banter-heavy, "
+                "DYNAMICALLY ADAPT and mirror their playful sarcasm, sharp comebacks, and humorous roasting! "
+                "Fire back with witty banter and playful teasing just like real friends banter, while keeping it affectionate and loyal. "
+                "If the friend is asking for serious help or sharing worries, switch back to being supportive and helpful."
+            ),
+        }
+
+    # 4. Standard / Normal
+    return {
+        "category": "normal",
+        "detected_label": "Standard Contact",
+        "prompt_instruction": "The contact is an acquaintance or regular contact. Maintain a polite, natural, friendly, and helpful standard tone.",
+        "dynamic_adaptation": "Answer questions politely, clearly, and concisely.",
+    }
+
+
 def build_system_prompt(
     config: dict,
     contact_name: str | None = None,
@@ -105,8 +192,12 @@ def build_system_prompt(
     If contact_config is present and enabled, overrides global settings (e.g. sarcastic tone, custom instructions).
     If any field is missing from contact_config, falls back to global `config`.
     Also injects semantically retrieved pgvector memories for this specific contact.
+    Dynamically senses contact relationships (Boss, Love, Friend with sarcasm, Standard) from name.
     """
     has_contact_override = bool(contact_config and contact_config.get("enabled", True))
+
+    resolved_contact_name = (contact_config.get("contactName") if has_contact_override else None) or contact_name
+    rel_info = detect_contact_relationship(resolved_contact_name)
 
     # 1. Role / Identity
     role_field = (contact_config.get("roleIdentity") if has_contact_override else None) or config.get("roleIdentity")
@@ -116,15 +207,19 @@ def build_system_prompt(
     lang_field = (contact_config.get("language") if has_contact_override else None) or config.get("language")
     language = resolve_field(lang_field, LANGUAGE_PRESETS, "english")
 
-    # 3. Response Style / Tone (sarcastic, witty, friendly, etc.)
-    # Support both toneStyle shorthand ("sarcastic") and full responseStyle field
-    if has_contact_override and contact_config.get("toneStyle") and contact_config.get("toneStyle") != "global":
+    # 3. Response Style / Tone (sarcastic, witty, friendly, boss, love, etc.)
+    # Support both toneStyle shorthand ("sarcastic", "boss", "love") and full responseStyle field
+    if has_contact_override and contact_config.get("toneStyle") and contact_config.get("toneStyle") not in ("global", "auto", "relationship"):
         tone_key = contact_config["toneStyle"].strip().lower()
         style = STYLE_PRESETS.get(tone_key, tone_key)
     elif has_contact_override and contact_config.get("responseStyle"):
         style = resolve_field(contact_config.get("responseStyle"), STYLE_PRESETS, "default")
     else:
-        style = resolve_field(config.get("responseStyle"), STYLE_PRESETS, "default")
+        # If no explicit custom tone, check if relationship dictates a specific preset (e.g. boss, love)
+        if rel_info["category"] in ("boss", "love"):
+            style = STYLE_PRESETS[rel_info["category"]]
+        else:
+            style = resolve_field(config.get("responseStyle"), STYLE_PRESETS, "default")
 
     # 4. Memory Context
     mem_field = (contact_config.get("memoryContext") if has_contact_override else None) or config.get("memoryContext")
@@ -143,7 +238,6 @@ def build_system_prompt(
     contact_notes = (contact_config.get("notes") or "").strip() if has_contact_override else ""
 
     who = "the contact"
-    resolved_contact_name = contact_name or (contact_config.get("contactName") if has_contact_override else None)
     if resolved_contact_name and contact_number:
         who = f"{resolved_contact_name} (WhatsApp number {contact_number})"
     elif resolved_contact_name:
@@ -154,6 +248,11 @@ def build_system_prompt(
     lines = [
         f"You are {role}.",
         f"You are chatting on WhatsApp with {who}." + (f" You write from the account owner's number {owner_number}." if owner_number else ""),
+        "",
+        "# Contact Relationship & Dynamic Tone",
+        f"Detected Relationship: {rel_info['detected_label']}",
+        f"- {rel_info['prompt_instruction']}",
+        f"- {rel_info['dynamic_adaptation']}",
         "",
         "# Your main task",
         task,

@@ -103,3 +103,37 @@ def test_pgvector_memories_injected_into_prompt():
     assert "pepperoni pizza on Friday" in prompt
     assert "extra spicy seasoning" in prompt
 
+
+def test_detect_contact_relationship_boss():
+    from FastAPI_WebAuth.AI_AI_AI_AI_AI_AI.prompt_builder import detect_contact_relationship
+    rel = detect_contact_relationship("Mr. Sharma (Boss)")
+    assert rel["category"] == "boss"
+    assert "Boss / Executive" in rel["detected_label"]
+
+    prompt = build_system_prompt(CONFIG, contact_name="Mr. Sharma (Boss)", contact_number="919876543210")
+    assert "Boss / Executive" in prompt
+    assert "utmost professional respect" in prompt
+
+
+def test_detect_contact_relationship_love():
+    from FastAPI_WebAuth.AI_AI_AI_AI_AI_AI.prompt_builder import detect_contact_relationship
+    rel = detect_contact_relationship("My Love ❤️")
+    assert rel["category"] == "love"
+    assert "Loved One / Partner" in rel["detected_label"]
+
+    prompt = build_system_prompt(CONFIG, contact_name="My Love ❤️", contact_number="919876543211")
+    assert "Loved One / Partner" in prompt
+    assert "affectionate" in prompt or "loving" in prompt
+
+
+def test_detect_contact_relationship_friend_dynamic_sarcasm():
+    from FastAPI_WebAuth.AI_AI_AI_AI_AI_AI.prompt_builder import detect_contact_relationship
+    rel = detect_contact_relationship("Rahul Friend")
+    assert rel["category"] == "friend"
+    assert "Friend / Buddy" in rel["detected_label"]
+
+    prompt = build_system_prompt(CONFIG, contact_name="Rahul Friend", contact_number="919876543212")
+    assert "Friend / Buddy" in prompt
+    assert "DYNAMIC SARCASM & BANTER ADAPTATION" in prompt
+    assert "mirror their playful sarcasm" in prompt or "witty banter" in prompt
+

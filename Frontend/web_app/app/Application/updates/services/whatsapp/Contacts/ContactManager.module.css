@@ -47,6 +47,45 @@
   box-shadow: 0 0 15px rgba(232, 221, 207, 0.08);
 }
 
+.topActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.viewToggle {
+  display: flex;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9px;
+  padding: 3px;
+  gap: 3px;
+}
+
+.viewBtn {
+  background: transparent;
+  border: none;
+  color: #8f9ca2;
+  padding: 6px 11px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 140ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.viewBtn:hover {
+  color: #f4eee8;
+}
+
+.viewBtnActive {
+  background: rgba(232, 221, 207, 0.15);
+  color: #e8ddcf;
+}
+
 .addBtn {
   display: inline-flex;
   align-items: center;
@@ -77,18 +116,18 @@
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgba(4, 8, 11, 0.75);
+  background: rgba(4, 8, 11, 0.8);
   backdrop-filter: blur(8px);
 }
 
 .addModal {
   width: 100%;
-  max-width: 440px;
+  max-width: 480px;
   padding: 24px;
   border: 1px solid rgba(216, 199, 184, 0.25);
   border-radius: 16px;
   background: #111c22;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
   color: #f4eee8;
 }
 
@@ -101,6 +140,7 @@
   margin: 0 0 18px;
   color: #8f9ca2;
   font-size: 0.84rem;
+  line-height: 1.5;
 }
 
 .modalActions {
@@ -110,9 +150,71 @@
   margin-top: 20px;
 }
 
+/* Filter Bar */
+.filterBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 2px;
+}
+
+.filterTabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filterTab {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  color: #8f9ca2;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.filterTab:hover {
+  color: #f4eee8;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.filterTabActive {
+  background: rgba(232, 221, 207, 0.12);
+  border-color: rgba(232, 221, 207, 0.28);
+  color: #e8ddcf;
+}
+
+.btnDangerOutline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.06);
+  color: #fca5a5;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.btnDangerOutline:hover {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: #ef4444;
+  color: #fff;
+}
+
+/* Card Grid View */
 .contactGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
   gap: 16px;
 }
 
@@ -130,7 +232,7 @@
   cursor: pointer;
   text-align: left;
   transition: all 180ms ease;
-  min-height: 155px;
+  min-height: 170px;
 }
 
 .contactCard:hover {
@@ -140,9 +242,9 @@
 }
 
 .contactCardCustom {
-  border-color: rgba(216, 199, 184, 0.25);
+  border-color: rgba(216, 199, 184, 0.28);
   background:
-    linear-gradient(145deg, rgba(232, 221, 207, 0.05), rgba(232, 221, 207, 0.01)),
+    linear-gradient(145deg, rgba(232, 221, 207, 0.06), rgba(232, 221, 207, 0.015)),
     #121d23;
 }
 
@@ -151,41 +253,122 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
-.contactInfo h3 {
-  margin: 0 0 4px;
+.contactInfo {
+  min-width: 0;
+  flex: 1;
+}
+
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.nameRow h3 {
+  margin: 0;
   font-size: 1.05rem;
   font-weight: 700;
   color: #f4eee8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.syncNameBtn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #a3b2b8;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+.syncNameBtn:hover {
+  background: rgba(232, 221, 207, 0.15);
+  color: #e8ddcf;
+  border-color: rgba(232, 221, 207, 0.3);
 }
 
 .numberText {
-  font-family: monospace;
-  font-size: 0.85rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.84rem;
   color: #9eb1b7;
+  display: block;
 }
 
-.toneBadge {
+/* Badges */
+.badgeStack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.statusPill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: capitalize;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  color: #a5b4ba;
+  font-weight: 750;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
-.toneBadgeCustom {
-  border-color: rgba(232, 221, 207, 0.3);
-  background: rgba(232, 221, 207, 0.12);
-  color: #f2e8dc;
+.pillGlobal {
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  background: rgba(96, 165, 250, 0.08);
+  color: #93c5fd;
+}
+
+.pillCustom {
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.12);
+  color: #fcd34d;
+}
+
+.relationshipBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.relBoss {
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  background: rgba(168, 85, 247, 0.12);
+  color: #d8b4fe;
+}
+
+.relLove {
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  background: rgba(244, 63, 94, 0.12);
+  color: #fda4af;
+}
+
+.relFriend {
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+}
+
+.relNormal {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
 }
 
 .cardStats {
@@ -195,7 +378,7 @@
   margin: 10px 0;
   padding: 8px 12px;
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .statItem {
@@ -229,6 +412,73 @@
   gap: 4px;
 }
 
+.quickRevertBtn {
+  padding: 3px 8px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  background: transparent;
+  color: #f87171;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.quickRevertBtn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: #ef4444;
+  color: #fff;
+}
+
+/* Scrollable Dense Table / List View */
+.tableContainer {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  background: #111c22;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.contactTable {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 780px;
+  text-align: left;
+}
+
+.contactTable th {
+  padding: 12px 16px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #7d8c92;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.contactTable td {
+  padding: 12px 16px;
+  font-size: 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+  vertical-align: middle;
+}
+
+.tableRow {
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.tableRow:hover {
+  background: rgba(232, 221, 207, 0.04);
+}
+
+.tableRowCustom {
+  background: rgba(232, 221, 207, 0.02);
+}
+
+/* Empty State */
 .emptyState {
   padding: 48px 24px;
   text-align: center;
@@ -254,4 +504,31 @@
   font-size: 0.88rem;
   max-width: 440px;
   margin: 0 auto;
+}
+
+/* Relationship Detection Preview in Modal */
+.previewBox {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.previewHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #e8ddcf;
+}
+
+.previewDesc {
+  font-size: 0.78rem;
+  color: #9eb1b7;
+  line-height: 1.4;
 }

@@ -68,3 +68,8 @@ class MemoryCreateType(BaseModel):
     whatsappNumber: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=50)]
     memoryText: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
 
+
+class ContactNameSyncType(BaseModel):
+    whatsappNumber: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=50)]
+    contactName: Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)]
+
